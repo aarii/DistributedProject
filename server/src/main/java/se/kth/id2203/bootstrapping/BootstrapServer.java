@@ -93,6 +93,7 @@ public class BootstrapServer extends ComponentDefinition {
                     LOG.info("Initial assignment är: " + initialAssignment);
                     //trigger(new Booted(initialAssignment), boot);
                     if(groupCount == bootThreshold){
+                        //hejjj
                         //starta en ny komponent som heter distributor och skicka alla viktiga grejer till den
                         //state = State.DONE;
                     }
