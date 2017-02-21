@@ -25,15 +25,14 @@ package se.kth.id2203.bootstrapping;
 
 import com.google.common.collect.ImmutableSet;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import se.kth.id2203.bootstrapping.BootstrapServer.State;
 import se.kth.id2203.networking.Message;
 import se.kth.id2203.networking.NetAddress;
+import se.kth.id2203.overlay.LookupTable;
 import se.sics.kompics.ClassMatchedHandler;
 import se.sics.kompics.ComponentDefinition;
 import se.sics.kompics.Handler;
@@ -60,6 +59,7 @@ public class BootstrapServer extends ComponentDefinition {
     private  ArrayList<NetAddress> active = new ArrayList<>();
     private final Set<NetAddress> ready = new HashSet<>();
     private NodeAssignment initialAssignment = null;
+    private HashMap<Integer, LookupTable> groups = new HashMap<>();
     private int groupCount = 0;
     private ArrayList<NetAddress> done = new ArrayList<>();
     //******* Handlers ******
@@ -82,22 +82,23 @@ public class BootstrapServer extends ComponentDefinition {
                 LOG.info("{} hosts in active set.", active.size());
 
                 if (active.size() >= bootThreshold) {
-
                     ArrayList<NetAddress> group = new ArrayList<>(active.subList(0, 3));
-                    LOG.info("group innehalller " + group);
-                    bootUp(group);
-                    active.clear();
+                        LOG.info("group innehalller " + group);
+                        bootUp(group);
+                        for(int i =0; i<group.size(); i++){
+                            done.add(group.get(i));
+                        }
+                        active.clear();
                     groupCount++;
-
-                    if(groupCount == bootThreshold) {
-                        state = State.SEEDING;
-                    }
+                        if(groupCount == bootThreshold) {
+                            state = State.SEEDING;
+                        }
                 }
             } else if (state == State.SEEDING) {
                 LOG.info("{} hosts in ready set.", ready.size());
                 if (ready.size() >= bootThreshold) {
                     LOG.info("Finished seeding. Bootstrapping complete.");
-                    LOG.info("Initial assignment är: " + initialAssignment);
+                    //LOG.info("Initial assignment är: " + initialAssignment);
                     //trigger(new Booted(initialAssignment), boot);
                     if(groupCount == bootThreshold){
 
@@ -115,9 +116,11 @@ public class BootstrapServer extends ComponentDefinition {
         public void handle(InitialAssignments e) {
             LOG.info("Seeding assignments...");
             initialAssignment = e.assignment;
-            for (NetAddress node : active) {
+            LOG.info("GROUPCOUNT ÄR " + groupCount + " MED INITIALASSIGNMENT " + initialAssignment);
+            for (NetAddress node : done) {
                 trigger(new Message(self, node, new Boot(initialAssignment)), net);
             }
+            groups.put(groupCount,(LookupTable) initialAssignment);
             //ready.add(self);
         }
     };
@@ -125,7 +128,9 @@ public class BootstrapServer extends ComponentDefinition {
 
         @Override
         public void handle(CheckIn content, Message context) {
-            active.add(context.getSource());
+            if(!done.contains(context.getSource())) {
+                active.add(context.getSource());
+            }
         }
     };
     protected final ClassMatchedHandler<Ready, Message> readyHandler = new ClassMatchedHandler<Ready, Message>() {
