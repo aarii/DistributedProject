@@ -116,11 +116,19 @@ public class BootstrapServer extends ComponentDefinition {
         public void handle(InitialAssignments e) {
             LOG.info("Seeding assignments...");
             initialAssignment = e.assignment;
-            LOG.info("GROUPCOUNT ÄR " + groupCount + " MED INITIALASSIGNMENT " + initialAssignment);
+           // LOG.info("GROUPCOUNT ÄR " + groupCount + " MED INITIALASSIGNMENT " + initialAssignment);
             for (NetAddress node : done) {
                 trigger(new Message(self, node, new Boot(initialAssignment)), net);
             }
             groups.put(groupCount,(LookupTable) initialAssignment);
+
+            for (Map.Entry<Integer,LookupTable> entry : groups.entrySet()) {
+                Integer key = entry.getKey();
+                LookupTable value = entry.getValue();
+                LOG.info("KEY ÄR " + key + " VALUE SOM E LOOKUP TABLE " + value);
+
+                // do stuff
+            }
             //ready.add(self);
         }
     };
