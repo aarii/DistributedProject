@@ -24,6 +24,8 @@
 package se.kth.id2203.bootstrapping;
 
 import com.google.common.collect.ImmutableSet;
+
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -55,10 +57,11 @@ public class BootstrapServer extends ComponentDefinition {
     final int bootThreshold = config().getValue("id2203.project.bootThreshold", Integer.class);
     private State state = State.COLLECTING;
     private UUID timeoutId;
-    private final Set<NetAddress> active = new HashSet<>();
+    private  ArrayList<NetAddress> active = new ArrayList<>();
     private final Set<NetAddress> ready = new HashSet<>();
     private NodeAssignment initialAssignment = null;
     private int groupCount = 0;
+    private ArrayList<NetAddress> done = new ArrayList<>();
     //******* Handlers ******
     protected final Handler<Start> startHandler = new Handler<Start>() {
         @Override
@@ -77,14 +80,18 @@ public class BootstrapServer extends ComponentDefinition {
         public void handle(BSTimeout e) {
             if (state == State.COLLECTING) {
                 LOG.info("{} hosts in active set.", active.size());
+
                 if (active.size() >= bootThreshold) {
+
+                    ArrayList<NetAddress> group = new ArrayList<>(active.subList(0, 3));
+                    LOG.info("group innehalller " + group);
+                    bootUp(group);
+                    active.clear();
+                    groupCount++;
 
                     if(groupCount == bootThreshold) {
                         state = State.SEEDING;
                     }
-                        bootUp();
-                        groupCount++;
-
                 }
             } else if (state == State.SEEDING) {
                 LOG.info("{} hosts in ready set.", ready.size());
@@ -93,7 +100,7 @@ public class BootstrapServer extends ComponentDefinition {
                     LOG.info("Initial assignment är: " + initialAssignment);
                     //trigger(new Booted(initialAssignment), boot);
                     if(groupCount == bootThreshold){
-                        //hejjj
+
                         //starta en ny komponent som heter distributor och skicka alla viktiga grejer till den
                         //state = State.DONE;
                     }
@@ -141,7 +148,7 @@ public class BootstrapServer extends ComponentDefinition {
         trigger(new CancelPeriodicTimeout(timeoutId), timer);
     }
 
-    private void bootUp() {
+    private void bootUp(ArrayList active) {
         LOG.info("Threshold reached. Generating assignments...");
         trigger(new GetInitialAssignments(ImmutableSet.copyOf(active)), boot);
     }
