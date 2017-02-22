@@ -29,7 +29,6 @@ import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import se.kth.id2203.bootstrapping.BootstrapServer.State;
 import se.kth.id2203.networking.Message;
 import se.kth.id2203.networking.NetAddress;
 import se.kth.id2203.overlay.LookupTable;
@@ -56,10 +55,10 @@ public class BootstrapServer extends ComponentDefinition {
     final int bootThreshold = config().getValue("id2203.project.bootThreshold", Integer.class);
     private State state = State.COLLECTING;
     private UUID timeoutId;
+    private LookupTable groups = new LookupTable();
     private  ArrayList<NetAddress> active = new ArrayList<>();
     private final Set<NetAddress> ready = new HashSet<>();
     private NodeAssignment initialAssignment = null;
-    private HashMap<Integer, LookupTable> groups = new HashMap<>();
     private int groupCount = 0;
     private ArrayList<NetAddress> done = new ArrayList<>();
     //******* Handlers ******
@@ -83,12 +82,16 @@ public class BootstrapServer extends ComponentDefinition {
 
                 if (active.size() >= bootThreshold) {
                     ArrayList<NetAddress> group = new ArrayList<>(active.subList(0, 3));
-                        LOG.info("group innehalller " + group);
+                        // LOG.info("group innehalller " + group);
                         bootUp(group);
                         for(int i =0; i<group.size(); i++){
                             done.add(group.get(i));
                         }
+
+                        groups.put(groupCount, ImmutableSet.copyOf(group));
+                        LOG.info("Lookup table: " + groups.toString());
                         active.clear();
+
                     groupCount++;
                         if(groupCount == bootThreshold) {
                             state = State.SEEDING;
@@ -120,15 +123,7 @@ public class BootstrapServer extends ComponentDefinition {
             for (NetAddress node : done) {
                 trigger(new Message(self, node, new Boot(initialAssignment)), net);
             }
-            groups.put(groupCount,(LookupTable) initialAssignment);
 
-            for (Map.Entry<Integer,LookupTable> entry : groups.entrySet()) {
-                Integer key = entry.getKey();
-                LookupTable value = entry.getValue();
-                LOG.info("KEY ÄR " + key + " VALUE SOM E LOOKUP TABLE " + value);
-
-                // do stuff
-            }
             //ready.add(self);
         }
     };

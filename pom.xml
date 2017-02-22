@@ -10,6 +10,7 @@
         <java.compiler.version>1.7</java.compiler.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <kompics.version>0.9.2-SNAPSHOT</kompics.version>
+        <scala.compiler.version>2.11.8</scala.compiler.version>
     </properties>
 
     <modules>
@@ -29,6 +30,12 @@
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
             <version>1.1.8</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>se.sics.kompics</groupId>
+            <artifactId>kompics-scala_2.11</artifactId>
+            <version>${kompics.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
@@ -71,9 +78,58 @@
             <artifactId>common-utils</artifactId>
             <version>1.4</version>
         </dependency>
+        <dependency>
+            <groupId>org.scala-lang</groupId>
+            <artifactId>scala-library</artifactId>
+            <version>${scala.compiler.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.scalactic</groupId>
+            <artifactId>scalactic_2.11</artifactId>
+            <version>3.0.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.scalatest</groupId>
+            <artifactId>scalatest_2.11</artifactId>
+            <version>3.0.1</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
+
     <build>
         <plugins>
+            <plugin>
+                <groupId>net.alchim31.maven</groupId>
+                <artifactId>scala-maven-plugin</artifactId>
+                <version>3.2.1</version>
+                <!-- <recompileMode>incremental</recompileMode> -->
+                <configuration>
+                    <compilerPlugins>
+                        <compilerPlugin>
+                            <groupId>com.artima.supersafe</groupId>
+                            <artifactId>supersafe_2.11.8</artifactId>
+                            <version>1.1.0-RC7</version>
+                        </compilerPlugin>
+                    </compilerPlugins>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>scala-compile</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>add-source</goal>
+                            <goal>compile</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>scala-test-compile</id>
+                        <phase>process-test-resources</phase>
+                        <goals>
+                            <goal>testCompile</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <inherited>true</inherited>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -85,7 +141,7 @@
                     <target>${java.compiler.version}</target>
                     <debug>true</debug>
                     <optimize>true</optimize>
-                    <showDeprecations>true</showDeprecations>
+                    <!-- <showDeprecations>true</showDeprecations> -->
                 </configuration>
             </plugin>
         </plugins>
@@ -113,6 +169,11 @@
             <snapshots>
                 <enabled>true</enabled>
             </snapshots>
+        </repository>
+        <repository>
+            <id>artima</id>
+            <name>Artima Maven Repository</name>
+            <url>http://repo.artima.com/releases</url>
         </repository>
     </repositories>
 </project>

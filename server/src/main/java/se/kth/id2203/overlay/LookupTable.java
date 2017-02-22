@@ -67,10 +67,14 @@ public class LookupTable implements NodeAssignment {
         return sb.toString();
     }
 
-    static LookupTable generate(ImmutableSet<NetAddress> nodes) {
+    public static LookupTable generate(ImmutableSet<NetAddress> nodes) {
         LookupTable lut = new LookupTable();
         lut.partitions.putAll(0, nodes);
         return lut;
+    }
+
+    public void put(int groupCount, ImmutableSet<NetAddress> group){
+        partitions.putAll(groupCount, group);
     }
 
 }
