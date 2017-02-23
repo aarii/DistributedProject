@@ -29,15 +29,11 @@ import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import se.kth.id2203.distributor.SendLookupTable;
 import se.kth.id2203.networking.Message;
 import se.kth.id2203.networking.NetAddress;
 import se.kth.id2203.overlay.LookupTable;
-import se.sics.kompics.ClassMatchedHandler;
-import se.sics.kompics.ComponentDefinition;
-import se.sics.kompics.Handler;
-import se.sics.kompics.Negative;
-import se.sics.kompics.Positive;
-import se.sics.kompics.Start;
+import se.sics.kompics.*;
 import se.sics.kompics.network.Network;
 import se.sics.kompics.timer.CancelPeriodicTimeout;
 import se.sics.kompics.timer.SchedulePeriodicTimeout;
@@ -105,6 +101,7 @@ public class BootstrapServer extends ComponentDefinition {
                     //trigger(new Booted(initialAssignment), boot);
                     if(groupCount == bootThreshold){
 
+
                         //starta en ny komponent som heter distributor och skicka alla viktiga grejer till den
                         //state = State.DONE;
                     }
@@ -142,6 +139,8 @@ public class BootstrapServer extends ComponentDefinition {
             ready.add(context.getSource());
         }
     };
+
+
 
     {
         subscribe(startHandler, control);

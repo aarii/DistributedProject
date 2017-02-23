@@ -4,6 +4,7 @@ import com.google.common.base.Optional;
 import se.kth.id2203.bootstrapping.BootstrapClient;
 import se.kth.id2203.bootstrapping.BootstrapServer;
 import se.kth.id2203.bootstrapping.Bootstrapping;
+import se.kth.id2203.distributor.Distribution;
 import se.kth.id2203.kvstore.KVService;
 import se.kth.id2203.networking.NetAddress;
 import se.kth.id2203.overlay.Routing;
@@ -25,6 +26,7 @@ public class ParentComponent
     //******* Children ******
     protected final Component overlay = create(VSOverlayManager.class, Init.NONE);
     protected final Component kv = create(KVService.class, Init.NONE);
+    protected final Component distributor = create(DistributorComponent.class, Init.NONE);
     protected final Component boot;
 
     {
@@ -32,12 +34,15 @@ public class ParentComponent
         Optional<NetAddress> serverO = config().readValue("id2203.project.bootstrap-address", NetAddress.class);
         if (serverO.isPresent()) { // start in client mode
             boot = create(BootstrapClient.class, Init.NONE);
+            connect(boot.getNegative(Distribution.class), distributor.getPositive(Distribution.class), Channel.TWO_WAY);
+
         } else { // start in server mode
             boot = create(BootstrapServer.class, Init.NONE);
         }
 
         connect(timer, boot.getNegative(Timer.class), Channel.TWO_WAY);
         connect(net, boot.getNegative(Network.class), Channel.TWO_WAY);
+        connect(net, distributor.getNegative(Network.class), Channel.TWO_WAY);
         // Overlay
         connect(boot.getPositive(Bootstrapping.class), overlay.getNegative(Bootstrapping.class), Channel.TWO_WAY);
         connect(net, overlay.getNegative(Network.class), Channel.TWO_WAY);

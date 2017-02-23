@@ -27,4 +27,7 @@ import java.io.Serializable;
 
 public interface NodeAssignment extends Serializable {
 
+
+
+
 }
