@@ -29,6 +29,7 @@ import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import se.kth.id2203.distributor.Distribution;
 import se.kth.id2203.distributor.SendLookupTable;
 import se.kth.id2203.networking.Message;
 import se.kth.id2203.networking.NetAddress;
@@ -44,6 +45,7 @@ public class BootstrapServer extends ComponentDefinition {
     final static Logger LOG = LoggerFactory.getLogger(BootstrapServer.class);
     //******* Ports ******
     protected final Negative<Bootstrapping> boot = provides(Bootstrapping.class);
+    protected final Negative<Distribution> distributionPort = provides(Distribution.class);
     protected final Positive<Network> net = requires(Network.class);
     protected final Positive<Timer> timer = requires(Timer.class);
     //******* Fields ******
@@ -100,10 +102,11 @@ public class BootstrapServer extends ComponentDefinition {
                     //LOG.info("Initial assignment är: " + initialAssignment);
                     //trigger(new Booted(initialAssignment), boot);
                     if(groupCount == bootThreshold){
-
+                        LOG.debug("I am about to send the look up table to the Distributor ");
+                        trigger(new SendLookupTable(groups), distributionPort);
 
                         //starta en ny komponent som heter distributor och skicka alla viktiga grejer till den
-                        //state = State.DONE;
+                        state = State.DONE;
                     }
                 }
             } else if (state == State.DONE) {
