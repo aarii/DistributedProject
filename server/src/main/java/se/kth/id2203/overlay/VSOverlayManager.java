@@ -123,12 +123,13 @@ public class VSOverlayManager extends ComponentDefinition {
         }
     };
 
-    protected final Handler<LeaderNotification> leaderNotificationHandler = new Handler<LeaderNotification>() {
+    protected final ClassMatchedHandler<LeaderNotification, Message> leaderNotificationHandler = new ClassMatchedHandler<LeaderNotification, Message>() {
+
         @Override
-        public void handle(LeaderNotification leaderNotification) {
+        public void handle(LeaderNotification leaderNotification, Message message) {
             leader = true;
             String notification = leaderNotification.notification;
-            LOG.debug("I got the string " + notification + " with the position of " + leader);
+            LOG.debug("I got the notification " + notification + " with the position of " + leader);
         }
     };
 
@@ -139,6 +140,6 @@ public class VSOverlayManager extends ComponentDefinition {
         subscribe(routeHandler, net);
         subscribe(localRouteHandler, route);
         subscribe(connectHandler, net);
-        //subscribe(leaderNotificationHandler, net);
+        subscribe(leaderNotificationHandler, net);
     }
 }
