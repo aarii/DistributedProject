@@ -1,19 +1,15 @@
-package se.kth.id2203;
+package se.kth.id2203.distributor;
 
-import javafx.geometry.Pos;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import se.kth.id2203.bootstrapping.BootstrapServer;
-import se.kth.id2203.bootstrapping.Bootstrapping;
-import se.kth.id2203.bootstrapping.InitialAssignments;
 import se.kth.id2203.bootstrapping.NodeAssignment;
-import se.kth.id2203.distributor.Distribution;
-import se.kth.id2203.distributor.SendLookupTable;
+import se.kth.id2203.networking.NetAddress;
 import se.kth.id2203.overlay.LookupTable;
 import se.sics.kompics.ComponentDefinition;
 import se.sics.kompics.Handler;
 import se.sics.kompics.Negative;
 import se.sics.kompics.Positive;
+import se.sics.kompics.network.Network;
 
 
 /**
@@ -22,7 +18,8 @@ import se.sics.kompics.Positive;
 public class DistributorComponent extends ComponentDefinition {
     final static Logger LOG = LoggerFactory.getLogger(DistributorComponent.class);
 
-    protected final Positive<Distribution> distributionPort = requires(Distribution.class);
+    protected final Positive<DistributionPort> distribution = requires(DistributionPort.class);
+    protected final Negative<Network> net = provides(Network.class);
 
     protected final Handler<SendLookupTable> lookUpTableHandler = new Handler<SendLookupTable>() {
 
@@ -30,13 +27,19 @@ public class DistributorComponent extends ComponentDefinition {
         @Override
         public void handle(SendLookupTable lookupTable) {
 
-            NodeAssignment na = lookupTable.lookupTable;
+            LookupTable na = (LookupTable) lookupTable.lookupTable;
+            LOG.debug("SendLookupTable är " + na);
+            LOG.debug("na.getNodes är:" + na.getNodes());
 
-            LOG.debug("SendLookupTable är " +  (LookupTable) na);
+
+            //for(NetAdress i : na.getNodes())
+           // trigger(new LeaderNotification("You are the leader!"), net);
 
         }
     };
+
+
     {
-    subscribe(lookUpTableHandler, distributionPort);
+    subscribe(lookUpTableHandler, distribution);
 }
 }

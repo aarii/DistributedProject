@@ -4,7 +4,8 @@ import com.google.common.base.Optional;
 import se.kth.id2203.bootstrapping.BootstrapClient;
 import se.kth.id2203.bootstrapping.BootstrapServer;
 import se.kth.id2203.bootstrapping.Bootstrapping;
-import se.kth.id2203.distributor.Distribution;
+import se.kth.id2203.distributor.DistributionPort;
+import se.kth.id2203.distributor.DistributorComponent;
 import se.kth.id2203.kvstore.KVService;
 import se.kth.id2203.networking.NetAddress;
 import se.kth.id2203.overlay.Routing;
@@ -37,15 +38,16 @@ public class ParentComponent
 
         } else { // start in server mode
             boot = create(BootstrapServer.class, Init.NONE);
-            connect(boot.getPositive(Distribution.class), distributor.getNegative(Distribution.class), Channel.TWO_WAY);
+            connect(boot.getPositive(DistributionPort.class), distributor.getNegative(DistributionPort.class), Channel.TWO_WAY);
         }
 
         connect(timer, boot.getNegative(Timer.class), Channel.TWO_WAY);
         connect(net, boot.getNegative(Network.class), Channel.TWO_WAY);
-       // connect(net, distributor.getNegative(Network.class), Channel.TWO_WAY);
+
         // Overlay
         connect(boot.getPositive(Bootstrapping.class), overlay.getNegative(Bootstrapping.class), Channel.TWO_WAY);
         connect(net, overlay.getNegative(Network.class), Channel.TWO_WAY);
+        connect(distributor.getPositive(Network.class), overlay.getNegative(Network.class), Channel.TWO_WAY);
         // KV
         connect(overlay.getPositive(Routing.class), kv.getNegative(Routing.class), Channel.TWO_WAY);
         connect(net, kv.getNegative(Network.class), Channel.TWO_WAY);

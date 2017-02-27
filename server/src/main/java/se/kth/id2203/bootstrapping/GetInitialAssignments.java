@@ -27,11 +27,13 @@ import com.google.common.collect.ImmutableSet;
 import se.kth.id2203.networking.NetAddress;
 import se.sics.kompics.KompicsEvent;
 
+import java.util.ArrayList;
+
 public class GetInitialAssignments implements KompicsEvent {
 
-    public final ImmutableSet<NetAddress> nodes;
+    public final ArrayList<NetAddress> nodes;
 
-    public GetInitialAssignments(final ImmutableSet<NetAddress> nodes) {
+    public GetInitialAssignments(final ArrayList<NetAddress> nodes) {
         this.nodes = nodes;
     }
 }

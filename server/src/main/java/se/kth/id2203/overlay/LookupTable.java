@@ -26,7 +26,9 @@ package se.kth.id2203.overlay;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.TreeMultimap;
-import java.util.Collection;
+
+import java.util.*;
+
 import se.kth.id2203.bootstrapping.NodeAssignment;
 import se.kth.id2203.networking.NetAddress;
 
@@ -38,18 +40,15 @@ public class LookupTable implements NodeAssignment {
 
     private static final long serialVersionUID = -8766981433378303267L;
 
-    private final TreeMultimap<Integer, NetAddress> partitions = TreeMultimap.create();
+    private final Map<Integer, ArrayList<NetAddress>> partitions = new HashMap<>();
 
-    public Collection<NetAddress> lookup(String key) {
-        int keyHash = key.hashCode();
-        Integer partition = partitions.keySet().floor(keyHash);
-        if (partition == null) {
-            partition = partitions.keySet().last();
-        }
-        return partitions.get(partition);
+    public ArrayList<NetAddress> lookup(Integer key) {
+        return partitions.get(key);
     }
 
-    public Collection<NetAddress> getNodes() {
+    public Collection<ArrayList<NetAddress>> getNodes() {
+
+
         return partitions.values();
     }
 
@@ -67,14 +66,20 @@ public class LookupTable implements NodeAssignment {
         return sb.toString();
     }
 
-    public static LookupTable generate(ImmutableSet<NetAddress> nodes) {
+   public static LookupTable generate(ArrayList<NetAddress> nodes) {
         LookupTable lut = new LookupTable();
-        lut.partitions.putAll(0, nodes);
+        lut.partitions.put(0,nodes);
         return lut;
     }
 
-    public void put(int groupCount, ImmutableSet<NetAddress> group){
-        partitions.putAll(groupCount, group);
+    public void put(int groupCount, ArrayList<NetAddress> group){
+        partitions.put(groupCount, group);
     }
+
+    public ArrayList<NetAddress> get(int key){
+       return partitions.get(key);
+    }
+
+
 
 }

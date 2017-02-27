@@ -5,7 +5,7 @@ import se.sics.kompics.PortType;
 /**
  * Created by Amir on 2017-02-23.
  */
-public class Distribution extends PortType {
+public class DistributionPort extends PortType {
 
     {
 

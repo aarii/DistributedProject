@@ -29,7 +29,7 @@ import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import se.kth.id2203.distributor.Distribution;
+import se.kth.id2203.distributor.DistributionPort;
 import se.kth.id2203.distributor.SendLookupTable;
 import se.kth.id2203.networking.Message;
 import se.kth.id2203.networking.NetAddress;
@@ -45,7 +45,7 @@ public class BootstrapServer extends ComponentDefinition {
     final static Logger LOG = LoggerFactory.getLogger(BootstrapServer.class);
     //******* Ports ******
     protected final Negative<Bootstrapping> boot = provides(Bootstrapping.class);
-    protected final Negative<Distribution> distributionPort = provides(Distribution.class);
+    protected final Negative<DistributionPort> distributionPort = provides(DistributionPort.class);
     protected final Positive<Network> net = requires(Network.class);
     protected final Positive<Timer> timer = requires(Timer.class);
     //******* Fields ******
@@ -86,7 +86,7 @@ public class BootstrapServer extends ComponentDefinition {
                             done.add(group.get(i));
                         }
 
-                        groups.put(groupCount, ImmutableSet.copyOf(group));
+                        groups.put(groupCount, group);
                         LOG.info("Lookup table: " + groups.toString());
                         active.clear();
 
@@ -160,7 +160,7 @@ public class BootstrapServer extends ComponentDefinition {
 
     private void bootUp(ArrayList active) {
         LOG.info("Threshold reached. Generating assignments...");
-        trigger(new GetInitialAssignments(ImmutableSet.copyOf(active)), boot);
+        trigger(new GetInitialAssignments(active), boot);
     }
 
     static enum State {

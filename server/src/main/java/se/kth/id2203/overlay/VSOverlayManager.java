@@ -24,6 +24,8 @@
 package se.kth.id2203.overlay;
 
 import com.larskroll.common.J6;
+
+import java.util.ArrayList;
 import java.util.Collection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +33,7 @@ import se.kth.id2203.bootstrapping.Booted;
 import se.kth.id2203.bootstrapping.Bootstrapping;
 import se.kth.id2203.bootstrapping.GetInitialAssignments;
 import se.kth.id2203.bootstrapping.InitialAssignments;
+import se.kth.id2203.distributor.LeaderNotification;
 import se.kth.id2203.networking.Message;
 import se.kth.id2203.networking.NetAddress;
 import se.sics.kompics.ClassMatchedHandler;
@@ -62,6 +65,7 @@ public class VSOverlayManager extends ComponentDefinition {
     //******* Fields ******
     final NetAddress self = config().getValue("id2203.project.address", NetAddress.class);
     private LookupTable lut = null;
+    public boolean leader = false;
     //******* Handlers ******
     protected final Handler<GetInitialAssignments> initialAssignmentHandler = new Handler<GetInitialAssignments>() {
 
@@ -89,7 +93,7 @@ public class VSOverlayManager extends ComponentDefinition {
 
         @Override
         public void handle(RouteMsg content, Message context) {
-            Collection<NetAddress> partition = lut.lookup(content.key);
+            ArrayList<NetAddress> partition = lut.lookup(Integer.parseInt(content.key));
             NetAddress target = J6.randomElement(partition);
             LOG.info("Forwarding message for key {} to {}", content.key, target);
             trigger(new Message(context.getSource(), target, content.msg), net);
@@ -99,7 +103,7 @@ public class VSOverlayManager extends ComponentDefinition {
 
         @Override
         public void handle(RouteMsg event) {
-            Collection<NetAddress> partition = lut.lookup(event.key);
+            ArrayList<NetAddress> partition = lut.lookup(Integer.parseInt(event.key));
             NetAddress target = J6.randomElement(partition);
             LOG.info("Routing message for key {} to {}", event.key, target);
             trigger(new Message(self, target, event.msg), net);
@@ -119,11 +123,22 @@ public class VSOverlayManager extends ComponentDefinition {
         }
     };
 
+    protected final Handler<LeaderNotification> leaderNotificationHandler = new Handler<LeaderNotification>() {
+        @Override
+        public void handle(LeaderNotification leaderNotification) {
+            leader = true;
+            String notification = leaderNotification.notification;
+            LOG.debug("I got the string " + notification + " with the position of " + leader);
+        }
+    };
+
+
     {
         subscribe(initialAssignmentHandler, boot);
         subscribe(bootHandler, boot);
         subscribe(routeHandler, net);
         subscribe(localRouteHandler, route);
         subscribe(connectHandler, net);
+        //subscribe(leaderNotificationHandler, net);
     }
 }
