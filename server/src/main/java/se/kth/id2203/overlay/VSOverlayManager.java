@@ -27,6 +27,8 @@ import com.larskroll.common.J6;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.UUID;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import se.kth.id2203.bootstrapping.Booted;
@@ -35,6 +37,7 @@ import se.kth.id2203.bootstrapping.GetInitialAssignments;
 import se.kth.id2203.bootstrapping.InitialAssignments;
 import se.kth.id2203.distributor.LeaderNotification;
 import se.kth.id2203.failuredetection.FDEvent;
+import se.kth.id2203.failuredetection.FDTimeout;
 import se.kth.id2203.networking.Message;
 import se.kth.id2203.networking.NetAddress;
 import se.sics.kompics.ClassMatchedHandler;
@@ -43,6 +46,8 @@ import se.sics.kompics.Handler;
 import se.sics.kompics.Negative;
 import se.sics.kompics.Positive;
 import se.sics.kompics.network.Network;
+import se.sics.kompics.timer.CancelPeriodicTimeout;
+import se.sics.kompics.timer.SchedulePeriodicTimeout;
 import se.sics.kompics.timer.Timer;
 
 /**
@@ -64,9 +69,12 @@ public class VSOverlayManager extends ComponentDefinition {
     protected final Positive<Network> net = requires(Network.class);
     protected final Positive<Timer> timer = requires(Timer.class);
     //******* Fields ******
-    final NetAddress self = config().getValue("id2203.project.address", NetAddress.class);
+    NetAddress self = null;
+    NetAddress distributor = null;
     private LookupTable lut = null;
     public boolean leader = false;
+    private UUID timeoutId;
+
     //******* Handlers ******
     protected final Handler<GetInitialAssignments> initialAssignmentHandler = new Handler<GetInitialAssignments>() {
 
@@ -128,10 +136,33 @@ public class VSOverlayManager extends ComponentDefinition {
 
         @Override
         public void handle(LeaderNotification leaderNotification, Message message) {
-            leader = true;
             String notification = leaderNotification.notification;
-            LOG.debug("I got the notification " + notification + " with the position of " + leader +
-                    " and i am " + message.getDestination() + " source is " + message.getSource());
+            self = message.getDestination();
+            distributor = message.getSource();
+
+            if(notification.equalsIgnoreCase("You are the leader")){
+                leader = true;
+                LOG.debug(self + " got: " + notification + " and leader parameter is now: " + leader);
+            }
+
+            LOG.debug(self + " got: " + notification + " and leader parameter is now: " + leader);
+
+
+            long timeout = (config().getValue("id2203.project.keepAlivePeriod", Long.class) * 2);
+            SchedulePeriodicTimeout spt = new SchedulePeriodicTimeout(timeout, timeout);
+            spt.setTimeoutEvent(new FDTimeout(spt));
+            trigger(spt, timer);
+            timeoutId = spt.getTimeoutEvent().getTimeoutId();
+        }
+    };
+
+    protected final Handler<FDTimeout> heartBeatHandler = new Handler<FDTimeout>() {
+
+        @Override
+        public void handle(FDTimeout fdTimeout) {
+            LOG.debug("VI är i heartbeat handler och self är " + self + " och distributor är " + distributor);
+
+            trigger(new Message(self, distributor, new FDEvent("I'm alive")), net);
         }
     };
 
@@ -144,13 +175,20 @@ public class VSOverlayManager extends ComponentDefinition {
     }
 };
 
-    {
+    @Override
+    public void tearDown() {
+        trigger(new CancelPeriodicTimeout(timeoutId), timer);
+    }
 
+
+    {
         subscribe(initialAssignmentHandler, boot);
         subscribe(bootHandler, boot);
         subscribe(routeHandler, net);
         subscribe(localRouteHandler, route);
         subscribe(connectHandler, net);
         subscribe(leaderNotificationHandler, net);
+        subscribe(heartBeatHandler, timer);
+
     }
 }

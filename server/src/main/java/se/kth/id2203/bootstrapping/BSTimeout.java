@@ -32,7 +32,7 @@ import se.sics.kompics.timer.Timeout;
  */
 public class BSTimeout extends Timeout {
 
-    BSTimeout(SchedulePeriodicTimeout spt) {
+    public BSTimeout(SchedulePeriodicTimeout spt) {
         super(spt);
     }
 }
