@@ -34,6 +34,7 @@ import se.kth.id2203.bootstrapping.Bootstrapping;
 import se.kth.id2203.bootstrapping.GetInitialAssignments;
 import se.kth.id2203.bootstrapping.InitialAssignments;
 import se.kth.id2203.distributor.LeaderNotification;
+import se.kth.id2203.failuredetection.FDEvent;
 import se.kth.id2203.networking.Message;
 import se.kth.id2203.networking.NetAddress;
 import se.sics.kompics.ClassMatchedHandler;
@@ -129,12 +130,22 @@ public class VSOverlayManager extends ComponentDefinition {
         public void handle(LeaderNotification leaderNotification, Message message) {
             leader = true;
             String notification = leaderNotification.notification;
-            LOG.debug("I got the notification " + notification + " with the position of " + leader);
+            LOG.debug("I got the notification " + notification + " with the position of " + leader +
+                    " and i am " + message.getDestination() + " source is " + message.getSource());
         }
     };
 
+    protected final ClassMatchedHandler<FDEvent, Message> fdHandler = new ClassMatchedHandler<FDEvent, Message>(){
+
+    @Override
+    public void handle(FDEvent fdEvent, Message message) {
+
+
+    }
+};
 
     {
+
         subscribe(initialAssignmentHandler, boot);
         subscribe(bootHandler, boot);
         subscribe(routeHandler, net);
