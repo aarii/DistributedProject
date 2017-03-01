@@ -2,14 +2,13 @@ package se.kth.id2203.distributor;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import se.kth.id2203.failuredetection.FDEvent;
-import se.kth.id2203.failuredetection.FDTimeout;
+import se.kth.id2203.failuredetection.DistributorEvent;
+import se.kth.id2203.failuredetection.DistributorTimeout;
 import se.kth.id2203.networking.Message;
 import se.kth.id2203.networking.NetAddress;
 import se.kth.id2203.overlay.LookupTable;
 import se.sics.kompics.*;
 import se.sics.kompics.network.Network;
-import se.sics.kompics.timer.CancelPeriodicTimeout;
 import se.sics.kompics.timer.SchedulePeriodicTimeout;
 import se.sics.kompics.timer.Timer;
 
@@ -51,22 +50,19 @@ public class DistributorComponent extends ComponentDefinition {
 
             long timeout = (config().getValue("id2203.project.keepAlivePeriod", Long.class) * 2);
             SchedulePeriodicTimeout spt = new SchedulePeriodicTimeout(timeout, timeout);
-            spt.setTimeoutEvent(new FDTimeout(spt));
+            spt.setTimeoutEvent(new DistributorTimeout(spt));
             trigger(spt, timer);
             timeoutId = spt.getTimeoutEvent().getTimeoutId();
-
-
         }
     };
 
-    protected final Handler<FDTimeout> heartBeatHandler = new Handler<FDTimeout>() {
-
+    protected final Handler<DistributorTimeout> heartBeatHandler = new Handler<DistributorTimeout>() {
         @Override
-        public void handle(FDTimeout fdTimeout) {
+        public void handle(DistributorTimeout distributorTimeout) {
 
             for(int i = 0; i<leaders.size(); i++) {
                 LOG.debug("VI är i heartbeat handler och distributor är " + self + " och leader är " + leaders.get(i));
-                trigger(new Message(self, leaders.get(i), new FDEvent("I'm alive")), net);
+                trigger(new Message(self, leaders.get(i), new DistributorEvent("I'm alive")), net);
             }
         }
     };

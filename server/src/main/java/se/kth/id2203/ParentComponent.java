@@ -47,7 +47,7 @@ public class ParentComponent
         // Overlay
         connect(boot.getPositive(Bootstrapping.class), overlay.getNegative(Bootstrapping.class), Channel.TWO_WAY);
         connect(net, overlay.getNegative(Network.class), Channel.TWO_WAY);
-        //connect(timer, overlay.getNegative(Timer.class), Channel.TWO_WAY);
+        connect(timer, overlay.getNegative(Timer.class), Channel.TWO_WAY);
 
         // Distributor
        // connect(distributor.getPositive(Network.class), overlay.getNegative(Network.class), Channel.TWO_WAY);

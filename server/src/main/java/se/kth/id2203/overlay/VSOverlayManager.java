@@ -26,7 +26,6 @@ package se.kth.id2203.overlay;
 import com.larskroll.common.J6;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -36,8 +35,7 @@ import se.kth.id2203.bootstrapping.Bootstrapping;
 import se.kth.id2203.bootstrapping.GetInitialAssignments;
 import se.kth.id2203.bootstrapping.InitialAssignments;
 import se.kth.id2203.distributor.LeaderNotification;
-import se.kth.id2203.failuredetection.FDEvent;
-import se.kth.id2203.failuredetection.FDTimeout;
+import se.kth.id2203.failuredetection.*;
 import se.kth.id2203.networking.Message;
 import se.kth.id2203.networking.NetAddress;
 import se.sics.kompics.ClassMatchedHandler;
@@ -69,9 +67,11 @@ public class VSOverlayManager extends ComponentDefinition {
     protected final Positive<Network> net = requires(Network.class);
     protected final Positive<Timer> timer = requires(Timer.class);
     //******* Fields ******
-    NetAddress self = null;
+
+    final NetAddress self = config().getValue("id2203.project.address", NetAddress.class);
     NetAddress distributor = null;
     private LookupTable lut = null;
+    private ArrayList<NetAddress> group = null;
     public boolean leader = false;
     private UUID timeoutId;
 
@@ -93,6 +93,7 @@ public class VSOverlayManager extends ComponentDefinition {
             if (event.assignment instanceof LookupTable) {
                 LOG.info("Got NodeAssignment, overlay ready.");
                 lut = (LookupTable) event.assignment;
+                group = lut.get(0);
             } else {
                 LOG.error("Got invalid NodeAssignment type. Expected: LookupTable; Got: {}", event.assignment.getClass());
             }
@@ -137,36 +138,53 @@ public class VSOverlayManager extends ComponentDefinition {
         @Override
         public void handle(LeaderNotification leaderNotification, Message message) {
             String notification = leaderNotification.notification;
-            self = message.getDestination();
+            //self = message.getDestination();
             distributor = message.getSource();
-
             if(notification.equalsIgnoreCase("You are the leader")){
                 leader = true;
                 LOG.debug(self + " got: " + notification + " and leader parameter is now: " + leader);
+            }else {
+                LOG.debug(self + " got: " + notification + " and leader parameter is now: " + leader);
+                long timeout = (config().getValue("id2203.project.keepAlivePeriod", Long.class) * 2);
+                SchedulePeriodicTimeout spt = new SchedulePeriodicTimeout(timeout, timeout);
+                spt.setTimeoutEvent(new ReplicaTimeout(spt));
+                trigger(spt, timer);
+                timeoutId = spt.getTimeoutEvent().getTimeoutId();
             }
+        }
+    };
 
-            LOG.debug(self + " got: " + notification + " and leader parameter is now: " + leader);
+    protected final Handler<ReplicaTimeout> RHBHandler = new Handler<ReplicaTimeout>() {
+        @Override
+        public void handle(ReplicaTimeout replicaTimeout) {
 
-
+                trigger(new Message(self, group.get(0), new LeaderRequestEvent("Are you alive?")), net);
 
         }
     };
 
-
-    protected final ClassMatchedHandler<FDEvent, Message> fdHandler = new ClassMatchedHandler<FDEvent, Message>(){
-
-    @Override
-    public void handle(FDEvent fdEvent, Message message) {
-
-
-    }
-};
-
-    protected final ClassMatchedHandler<FDEvent, Message> heartbeatHandler = new ClassMatchedHandler<FDEvent, Message>() {
-
+    protected final ClassMatchedHandler<DistributorEvent, Message> DHBHandler = new ClassMatchedHandler<DistributorEvent, Message>() {
         @Override
-        public void handle(FDEvent fdEvent, Message message) {
-            LOG.debug("I received " + fdEvent.heartbeat + " from " + message.getSource());
+        public void handle(DistributorEvent distributorEvent, Message message) {
+
+                LOG.debug("(DHBHandler) I am " + self + " and I received " + distributorEvent.heartbeat + " from " + message.getSource() );
+
+        }
+    };
+
+    protected final ClassMatchedHandler<LeaderRequestEvent, Message> LHBHandler = new ClassMatchedHandler<LeaderRequestEvent, Message>() {
+        @Override
+        public void handle(LeaderRequestEvent leaderEvent, Message message) {
+            LOG.debug("(LHBHandler) I am " + self + " and I received " + leaderEvent.heartbeat + " from " + message.getSource() );
+                trigger(new Message(message.getDestination(), message.getSource(), new LeaderResponseEvent("I'm alive!")), net);
+        }
+    };
+
+    protected final ClassMatchedHandler<LeaderResponseEvent, Message> leaderResponseHandler =  new ClassMatchedHandler<LeaderResponseEvent, Message>() {
+        @Override
+        public void handle(LeaderResponseEvent leaderResponseEvent, Message message) {
+            LOG.debug("I got the acknowledgement from" + message.getSource() + " that he is alive and I am "
+                    + self);
         }
     };
 
@@ -183,7 +201,10 @@ public class VSOverlayManager extends ComponentDefinition {
         subscribe(localRouteHandler, route);
         subscribe(connectHandler, net);
         subscribe(leaderNotificationHandler, net);
-        subscribe(heartbeatHandler, net);
+        subscribe(DHBHandler, net);
+        subscribe(LHBHandler, net);
+        subscribe(leaderResponseHandler, net);
+        subscribe(RHBHandler, timer);
 
     }
 }
