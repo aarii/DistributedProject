@@ -2,14 +2,13 @@ package se.kth.id2203.distributor;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import se.kth.id2203.failuredetection.DistributorEvent;
-import se.kth.id2203.failuredetection.DistributorTimeout;
+import se.kth.id2203.failuredetection.DistributorRequestEvent;
+import se.kth.id2203.failuredetection.DistributorResponseEvent;
 import se.kth.id2203.networking.Message;
 import se.kth.id2203.networking.NetAddress;
 import se.kth.id2203.overlay.LookupTable;
 import se.sics.kompics.*;
 import se.sics.kompics.network.Network;
-import se.sics.kompics.timer.SchedulePeriodicTimeout;
 import se.sics.kompics.timer.Timer;
 
 import java.util.ArrayList;
@@ -48,22 +47,17 @@ public class DistributorComponent extends ComponentDefinition {
                  trigger(new Message(self, leader, new LeaderNotification("You are the leader")), net);
             }
 
-            long timeout = (config().getValue("id2203.project.keepAlivePeriod", Long.class) * 2);
-            SchedulePeriodicTimeout spt = new SchedulePeriodicTimeout(timeout, timeout);
-            spt.setTimeoutEvent(new DistributorTimeout(spt));
-            trigger(spt, timer);
-            timeoutId = spt.getTimeoutEvent().getTimeoutId();
+
         }
     };
 
-    protected final Handler<DistributorTimeout> heartBeatHandler = new Handler<DistributorTimeout>() {
+    protected final ClassMatchedHandler<DistributorRequestEvent, Message> DHBHandler = new ClassMatchedHandler<DistributorRequestEvent, Message>() {
         @Override
-        public void handle(DistributorTimeout distributorTimeout) {
+        public void handle(DistributorRequestEvent distributorRequestEvent, Message message) {
 
-            for(int i = 0; i<leaders.size(); i++) {
-                LOG.debug("VI är i heartbeat handler och distributor är " + self + " och leader är " + leaders.get(i));
-                trigger(new Message(self, leaders.get(i), new DistributorEvent("I'm alive")), net);
-            }
+            LOG.debug("ahsbahbshabsa I am distributor: " + self + " and I received " + distributorRequestEvent.heartbeat + " from " + message.getSource());
+            trigger(new Message(self, message.getSource(), new DistributorResponseEvent("Yes I am alive as a distributor")), net);
+
         }
     };
 
@@ -71,7 +65,7 @@ public class DistributorComponent extends ComponentDefinition {
 
 
     {
-    subscribe(heartBeatHandler, timer);
+    subscribe(DHBHandler, net);
     subscribe(lookUpTableHandler, distribution);
 
 }

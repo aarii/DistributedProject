@@ -7,10 +7,10 @@ import java.io.Serializable;
 /**
  * Created by Amir on 2017-02-28.
  */
-public class DistributorEvent implements KompicsEvent, Serializable {
+public class DistributorRequestEvent implements KompicsEvent, Serializable {
 
     public String heartbeat;
-    public DistributorEvent(String heartbeat){ this.heartbeat = heartbeat;}
+    public DistributorRequestEvent(String heartbeat){ this.heartbeat = heartbeat;}
 
 
 }

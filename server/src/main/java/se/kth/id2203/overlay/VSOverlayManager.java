@@ -143,6 +143,13 @@ public class VSOverlayManager extends ComponentDefinition {
             if(notification.equalsIgnoreCase("You are the leader")){
                 leader = true;
                 LOG.debug(self + " got: " + notification + " and leader parameter is now: " + leader);
+
+                long timeout = (config().getValue("id2203.project.keepAlivePeriod", Long.class) * 2);
+                SchedulePeriodicTimeout spt = new SchedulePeriodicTimeout(timeout, timeout);
+                spt.setTimeoutEvent(new DistributorTimeout(spt));
+                trigger(spt, timer);
+                timeoutId = spt.getTimeoutEvent().getTimeoutId();
+
             }else {
                 LOG.debug(self + " got: " + notification + " and leader parameter is now: " + leader);
                 long timeout = (config().getValue("id2203.project.keepAlivePeriod", Long.class) * 2);
@@ -154,37 +161,46 @@ public class VSOverlayManager extends ComponentDefinition {
         }
     };
 
-    protected final Handler<ReplicaTimeout> RHBHandler = new Handler<ReplicaTimeout>() {
+    protected final Handler<DistributorTimeout> DHBHandler = new Handler<DistributorTimeout>() {
         @Override
-        public void handle(ReplicaTimeout replicaTimeout) {
+        public void handle(DistributorTimeout distributorTimeout) {
 
-                trigger(new Message(self, group.get(0), new LeaderRequestEvent("Are you alive?")), net);
+            trigger(new Message(self, distributor, new DistributorRequestEvent("Are you alive distributor?")), net);
 
         }
     };
 
-    protected final ClassMatchedHandler<DistributorEvent, Message> DHBHandler = new ClassMatchedHandler<DistributorEvent, Message>() {
+    protected final Handler<ReplicaTimeout> RHBHandler = new Handler<ReplicaTimeout>() {
         @Override
-        public void handle(DistributorEvent distributorEvent, Message message) {
+        public void handle(ReplicaTimeout replicaTimeout) {
 
-                LOG.debug("(DHBHandler) I am " + self + " and I received " + distributorEvent.heartbeat + " from " + message.getSource() );
+                trigger(new Message(self, group.get(0), new LeaderRequestEvent("Are you alive leader?")), net);
 
+        }
+    };
+
+    protected final ClassMatchedHandler<DistributorResponseEvent, Message> distributorResponseHandler = new ClassMatchedHandler<DistributorResponseEvent, Message>(){
+
+        @Override
+        public void handle(DistributorResponseEvent distributorResponse, Message message) {
+            LOG.debug("I am the leader: " + self + " and I got an acknowledgement from the distributor: " + message.getSource() + " with message: " + distributorResponse.heartbeat);
         }
     };
 
     protected final ClassMatchedHandler<LeaderRequestEvent, Message> LHBHandler = new ClassMatchedHandler<LeaderRequestEvent, Message>() {
         @Override
         public void handle(LeaderRequestEvent leaderEvent, Message message) {
-            LOG.debug("(LHBHandler) I am " + self + " and I received " + leaderEvent.heartbeat + " from " + message.getSource() );
-                trigger(new Message(message.getDestination(), message.getSource(), new LeaderResponseEvent("I'm alive!")), net);
+            LOG.debug("(LHBHandler) I am leader: " + self + " and I received " + leaderEvent.heartbeat + " from: " + message.getSource() );
+                trigger(new Message(message.getDestination(), message.getSource(), new LeaderResponseEvent("I'm alive as a leader!")), net);
         }
     };
 
     protected final ClassMatchedHandler<LeaderResponseEvent, Message> leaderResponseHandler =  new ClassMatchedHandler<LeaderResponseEvent, Message>() {
         @Override
         public void handle(LeaderResponseEvent leaderResponseEvent, Message message) {
-            LOG.debug("I got the acknowledgement from" + message.getSource() + " that he is alive and I am "
-                    + self);
+            LOG.debug("I am" + self + " and I got an acknowledgement from leader that he is alive");
+
+
         }
     };
 
@@ -201,10 +217,10 @@ public class VSOverlayManager extends ComponentDefinition {
         subscribe(localRouteHandler, route);
         subscribe(connectHandler, net);
         subscribe(leaderNotificationHandler, net);
-        subscribe(DHBHandler, net);
+        subscribe(DHBHandler, timer);
         subscribe(LHBHandler, net);
         subscribe(leaderResponseHandler, net);
+        subscribe(distributorResponseHandler, net);
         subscribe(RHBHandler, timer);
-
     }
 }
