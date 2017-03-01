@@ -148,23 +148,10 @@ public class VSOverlayManager extends ComponentDefinition {
             LOG.debug(self + " got: " + notification + " and leader parameter is now: " + leader);
 
 
-            long timeout = (config().getValue("id2203.project.keepAlivePeriod", Long.class) * 2);
-            SchedulePeriodicTimeout spt = new SchedulePeriodicTimeout(timeout, timeout);
-            spt.setTimeoutEvent(new FDTimeout(spt));
-            trigger(spt, timer);
-            timeoutId = spt.getTimeoutEvent().getTimeoutId();
+
         }
     };
 
-    protected final Handler<FDTimeout> heartBeatHandler = new Handler<FDTimeout>() {
-
-        @Override
-        public void handle(FDTimeout fdTimeout) {
-            LOG.debug("VI är i heartbeat handler och self är " + self + " och distributor är " + distributor);
-
-            trigger(new Message(self, distributor, new FDEvent("I'm alive")), net);
-        }
-    };
 
     protected final ClassMatchedHandler<FDEvent, Message> fdHandler = new ClassMatchedHandler<FDEvent, Message>(){
 
@@ -174,6 +161,14 @@ public class VSOverlayManager extends ComponentDefinition {
 
     }
 };
+
+    protected final ClassMatchedHandler<FDEvent, Message> heartbeatHandler = new ClassMatchedHandler<FDEvent, Message>() {
+
+        @Override
+        public void handle(FDEvent fdEvent, Message message) {
+            LOG.debug("I received " + fdEvent.heartbeat + " from " + message.getSource());
+        }
+    };
 
     @Override
     public void tearDown() {
@@ -188,7 +183,7 @@ public class VSOverlayManager extends ComponentDefinition {
         subscribe(localRouteHandler, route);
         subscribe(connectHandler, net);
         subscribe(leaderNotificationHandler, net);
-        subscribe(heartBeatHandler, timer);
+        subscribe(heartbeatHandler, net);
 
     }
 }
