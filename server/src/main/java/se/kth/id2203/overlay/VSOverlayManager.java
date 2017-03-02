@@ -74,6 +74,18 @@ public class VSOverlayManager extends ComponentDefinition {
     private ArrayList<NetAddress> group = null;
     public boolean leader = false;
     private UUID timeoutId;
+    private ArrayList<NetAddress> aliveInside = new ArrayList<>();
+    private ArrayList<NetAddress> suspectInside = new ArrayList<>();
+    private ArrayList<NetAddress> monitoringInside = new ArrayList<>();
+    private ArrayList<NetAddress> aliveOutside = new ArrayList<>();
+    private ArrayList<NetAddress> suspectOutside = new ArrayList<>();
+    private ArrayList<NetAddress> monitoringOutside = new ArrayList<>();
+    private int incInside = 2;
+    private int incOutside = 2;
+    private int seqNrInside = 0;
+    private int seqNrOutside = 0;
+
+
 
     //******* Handlers ******
     protected final Handler<GetInitialAssignments> initialAssignmentHandler = new Handler<GetInitialAssignments>() {
@@ -138,25 +150,19 @@ public class VSOverlayManager extends ComponentDefinition {
         @Override
         public void handle(LeaderNotification leaderNotification, Message message) {
             String notification = leaderNotification.notification;
-            //self = message.getDestination();
             distributor = message.getSource();
             if(notification.equalsIgnoreCase("You are the leader")){
                 leader = true;
+                monitoringOutside.add(distributor);
+                aliveInside.add(distributor);
                 LOG.debug(self + " got: " + notification + " and leader parameter is now: " + leader);
-
-                long timeout = (config().getValue("id2203.project.keepAlivePeriod", Long.class) * 2);
-                SchedulePeriodicTimeout spt = new SchedulePeriodicTimeout(timeout, timeout);
-                spt.setTimeoutEvent(new DistributorTimeout(spt));
-                trigger(spt, timer);
-                timeoutId = spt.getTimeoutEvent().getTimeoutId();
+                startTimerLeader(incOutside);
 
             }else {
+                monitoringInside.add(group.get(0));
+                aliveInside.add(group.get(0));
                 LOG.debug(self + " got: " + notification + " and leader parameter is now: " + leader);
-                long timeout = (config().getValue("id2203.project.keepAlivePeriod", Long.class) * 2);
-                SchedulePeriodicTimeout spt = new SchedulePeriodicTimeout(timeout, timeout);
-                spt.setTimeoutEvent(new ReplicaTimeout(spt));
-                trigger(spt, timer);
-                timeoutId = spt.getTimeoutEvent().getTimeoutId();
+                startTimerReplica(incInside);
             }
         }
     };
@@ -165,7 +171,22 @@ public class VSOverlayManager extends ComponentDefinition {
         @Override
         public void handle(DistributorTimeout distributorTimeout) {
 
+            if(!aliveOutside.isEmpty() && !suspectOutside.isEmpty()){
+                tearDown();
+                startTimerLeader(incOutside + 1);
+                seqNrOutside += 1;
+            }
+
+            for(int i = 0; i< monitoringOutside.size(); i++){
+                if(!aliveOutside.contains(monitoringOutside.get(i)) && !suspectOutside.contains(monitoringOutside.get(i))){
+                    suspectOutside.add(monitoringOutside.get(i));
+                }else if(aliveOutside.contains(monitoringOutside.get(i)) && suspectOutside.contains(monitoringOutside.get(i))){
+                    suspectOutside.remove(monitoringOutside.get(i));
+                }
+            }
+
             trigger(new Message(self, distributor, new DistributorRequestEvent("Are you alive distributor?")), net);
+            aliveOutside.clear();
 
         }
     };
@@ -174,7 +195,25 @@ public class VSOverlayManager extends ComponentDefinition {
         @Override
         public void handle(ReplicaTimeout replicaTimeout) {
 
+            if(!aliveInside.isEmpty() && !suspectInside.isEmpty()){
+                LOG.debug("I am:  " + self +   " and received a heartbeat too late and will increment my timer now");
+                tearDown();
+                startTimerReplica(incInside + 1);
+                seqNrInside += 1;
+                LOG.debug("seqNr has now been incremented to: " + seqNrInside);
+            }
+            for(int i = 0; i< monitoringInside.size(); i++){
+
+                if(!aliveInside.contains(monitoringInside.get(i)) && !suspectInside.contains(monitoringInside.get(i))){
+                    LOG.debug("I am: " + self + "  and I am suspecting the leader: " + monitoringInside.get(i) + " with seqNr: " + seqNrInside);
+                    suspectInside.add(monitoringInside.get(i));
+                }else if(aliveInside.contains(monitoringInside.get(i)) && suspectInside.contains(monitoringInside.get(i))){
+                    LOG.debug("I am: " + self + "  and I stopped suspecting the leader: " + suspectInside.get(i) + " with seqNr " + seqNrInside);
+                    suspectInside.remove(monitoringInside.get(i));
+                }
+            }
                 trigger(new Message(self, group.get(0), new LeaderRequestEvent("Are you alive leader?")), net);
+                aliveInside.clear();
 
         }
     };
@@ -190,17 +229,24 @@ public class VSOverlayManager extends ComponentDefinition {
     protected final ClassMatchedHandler<LeaderRequestEvent, Message> LHBHandler = new ClassMatchedHandler<LeaderRequestEvent, Message>() {
         @Override
         public void handle(LeaderRequestEvent leaderEvent, Message message) {
-            LOG.debug("(LHBHandler) I am leader: " + self + " and I received " + leaderEvent.heartbeat + " from: " + message.getSource() );
-                trigger(new Message(message.getDestination(), message.getSource(), new LeaderResponseEvent("I'm alive as a leader!")), net);
+            LOG.debug("(LHBHandler) I am leader: " + self + " and I received " + leaderEvent.heartbeat + " from: " + message.getSource() + " with seqNr: " + seqNrInside);
+            try {
+                LOG.debug("(LHBHandler) I am leader and I will sleep now" );
+                Thread.sleep(10000);
+                LOG.debug("(LHBHandler) I am leader and I have slept now. I will trigger my heartbeat response back to my replicas");
+
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            trigger(new Message(message.getDestination(), message.getSource(), new LeaderResponseEvent("I'm alive as a leader!")), net);
         }
     };
 
     protected final ClassMatchedHandler<LeaderResponseEvent, Message> leaderResponseHandler =  new ClassMatchedHandler<LeaderResponseEvent, Message>() {
         @Override
         public void handle(LeaderResponseEvent leaderResponseEvent, Message message) {
-            LOG.debug("I am" + self + " and I got an acknowledgement from leader that he is alive");
-
-
+            LOG.debug("I am" + self + " and I got an acknowledgement from leader: " + message.getSource() + " that he is alive");
+            aliveInside.add(message.getSource());
         }
     };
 
@@ -209,6 +255,24 @@ public class VSOverlayManager extends ComponentDefinition {
         trigger(new CancelPeriodicTimeout(timeoutId), timer);
     }
 
+
+    public void startTimerLeader(int x){
+
+        long timeout = (config().getValue("id2203.project.keepAlivePeriod", Long.class) * x);
+        SchedulePeriodicTimeout spt = new SchedulePeriodicTimeout(timeout, timeout);
+        spt.setTimeoutEvent(new DistributorTimeout(spt));
+        trigger(spt, timer);
+        timeoutId = spt.getTimeoutEvent().getTimeoutId();
+
+    }
+
+    public void startTimerReplica(int x){
+        long timeout = (config().getValue("id2203.project.keepAlivePeriod", Long.class) * x);
+        SchedulePeriodicTimeout spt = new SchedulePeriodicTimeout(timeout, timeout);
+        spt.setTimeoutEvent(new ReplicaTimeout(spt));
+        trigger(spt, timer);
+        timeoutId = spt.getTimeoutEvent().getTimeoutId();
+    }
 
     {
         subscribe(initialAssignmentHandler, boot);
