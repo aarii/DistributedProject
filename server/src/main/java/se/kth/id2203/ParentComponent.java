@@ -25,37 +25,43 @@ public class ParentComponent
     protected final Positive<Network> net = requires(Network.class);
     protected final Positive<Timer> timer = requires(Timer.class);
     //******* Children ******
-    protected final Component overlay = create(VSOverlayManager.class, Init.NONE);
+    protected  Component overlay;
     protected final Component kv = create(KVService.class, Init.NONE);
-    protected final Component distributor = create(DistributorComponent.class, Init.NONE);
+    protected Component distributor;
     protected final Component boot;
 
     {
-
         Optional<NetAddress> serverO = config().readValue("id2203.project.bootstrap-address", NetAddress.class);
         if (serverO.isPresent()) { // start in client mode
             boot = create(BootstrapClient.class, Init.NONE);
+            overlay = create(VSOverlayManager.class, Init.NONE);
+
+            // Overlay
+            connect(boot.getPositive(Bootstrapping.class), overlay.getNegative(Bootstrapping.class), Channel.TWO_WAY);
+            connect(net, overlay.getNegative(Network.class), Channel.TWO_WAY);
+            connect(timer, overlay.getNegative(Timer.class), Channel.TWO_WAY);
+
+            // KV
+            connect(overlay.getPositive(Routing.class), kv.getNegative(Routing.class), Channel.TWO_WAY);
+            connect(net, kv.getNegative(Network.class), Channel.TWO_WAY);
+
 
         } else { // start in server mode
+
             boot = create(BootstrapServer.class, Init.NONE);
+            distributor = create(DistributorComponent.class, Init.NONE);
+
             connect(boot.getPositive(DistributionPort.class), distributor.getNegative(DistributionPort.class), Channel.TWO_WAY);
+            // Distributor
+            // connect(distributor.getPositive(Network.class), overlay.getNegative(Network.class), Channel.TWO_WAY);
+            connect(net, distributor.getNegative(Network.class), Channel.TWO_WAY);
+            connect(timer, distributor.getNegative(Timer.class), Channel.TWO_WAY);
+
+
         }
 
         connect(timer, boot.getNegative(Timer.class), Channel.TWO_WAY);
         connect(net, boot.getNegative(Network.class), Channel.TWO_WAY);
 
-        // Overlay
-        connect(boot.getPositive(Bootstrapping.class), overlay.getNegative(Bootstrapping.class), Channel.TWO_WAY);
-        connect(net, overlay.getNegative(Network.class), Channel.TWO_WAY);
-        connect(timer, overlay.getNegative(Timer.class), Channel.TWO_WAY);
-
-        // Distributor
-       // connect(distributor.getPositive(Network.class), overlay.getNegative(Network.class), Channel.TWO_WAY);
-         connect(net, distributor.getNegative(Network.class), Channel.TWO_WAY);
-         connect(timer, distributor.getNegative(Timer.class), Channel.TWO_WAY);
-
-        // KV
-        connect(overlay.getPositive(Routing.class), kv.getNegative(Routing.class), Channel.TWO_WAY);
-        connect(net, kv.getNegative(Network.class), Channel.TWO_WAY);
     }
 }

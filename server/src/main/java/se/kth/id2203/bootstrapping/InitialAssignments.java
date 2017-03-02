@@ -25,7 +25,9 @@ package se.kth.id2203.bootstrapping;
 
 import se.sics.kompics.KompicsEvent;
 
-public class InitialAssignments implements KompicsEvent {
+import java.io.Serializable;
+
+public class InitialAssignments implements KompicsEvent, Serializable {
 
     public final NodeAssignment assignment;
 

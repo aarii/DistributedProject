@@ -96,6 +96,7 @@ public class BootstrapServer extends ComponentDefinition {
                         }
                 }
             } else if (state == State.SEEDING) {
+
                 LOG.info("{} hosts in ready set.", ready.size());
                 if (ready.size() >= bootThreshold) {
                     LOG.info("Finished seeding. Bootstrapping complete.");
@@ -104,7 +105,6 @@ public class BootstrapServer extends ComponentDefinition {
                     if(groupCount == bootThreshold){
                         LOG.debug("I am about to send the look up table to the Distributor ");
                         trigger(new SendLookupTable(groups), distributionPort);
-
                         //starta en ny komponent som heter distributor och skicka alla viktiga grejer till den
                         state = State.DONE;
                     }
@@ -114,7 +114,8 @@ public class BootstrapServer extends ComponentDefinition {
             }
         }
     };
-    protected final Handler<InitialAssignments> assignmentHandler = new Handler<InitialAssignments>() {
+
+   /*protected final Handler<InitialAssignments> assignmentHandler = new Handler<InitialAssignments>() {
         @Override
         public void handle(InitialAssignments e) {
             LOG.info("Seeding assignments...");
@@ -126,7 +127,22 @@ public class BootstrapServer extends ComponentDefinition {
 
             //ready.add(self);
         }
+    };*/
+
+    protected final ClassMatchedHandler<InitialAssignments, Message> assignmentHandler = new ClassMatchedHandler<InitialAssignments, Message>() {
+        @Override
+        public void handle(InitialAssignments initialAssignments, Message message) {
+            LOG.info("Seeding assignments...");
+            initialAssignment = initialAssignments.assignment;
+            // LOG.info("GROUPCOUNT ÄR " + groupCount + " MED INITIALASSIGNMENT " + initialAssignment);
+            for (NetAddress node : done) {
+                trigger(new Message(self, node, new Boot(initialAssignment)), net);
+            }
+
+            //ready.add(self);
+        }
     };
+
     protected final ClassMatchedHandler<CheckIn, Message> checkinHandler = new ClassMatchedHandler<CheckIn, Message>() {
 
         @Override
@@ -148,7 +164,7 @@ public class BootstrapServer extends ComponentDefinition {
     {
         subscribe(startHandler, control);
         subscribe(timeoutHandler, timer);
-        subscribe(assignmentHandler, boot);
+        subscribe(assignmentHandler, net);
         subscribe(checkinHandler, net);
         subscribe(readyHandler, net);
     }
@@ -158,9 +174,11 @@ public class BootstrapServer extends ComponentDefinition {
         trigger(new CancelPeriodicTimeout(timeoutId), timer);
     }
 
-    private void bootUp(ArrayList active) {
+    private void bootUp(ArrayList<NetAddress> active) {
         LOG.info("Threshold reached. Generating assignments...");
-        trigger(new GetInitialAssignments(active), boot);
+        for(int i =0; i<active.size(); i++) {
+            trigger(new Message(self, active.get(i), new GetInitialAssignments(active)), net);
+        }
     }
 
     static enum State {

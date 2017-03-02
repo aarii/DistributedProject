@@ -28,8 +28,8 @@ import se.sics.kompics.PortType;
 public class Bootstrapping extends PortType {
 
     {
-        indication(GetInitialAssignments.class);
+        //indication(GetInitialAssignments.class);
         indication(Booted.class);
-        request(InitialAssignments.class);
+        //request(InitialAssignments.class);
     }
 }

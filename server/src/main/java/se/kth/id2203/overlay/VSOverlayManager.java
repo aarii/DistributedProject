@@ -83,21 +83,32 @@ public class VSOverlayManager extends ComponentDefinition {
     private int incInside = 2;
     private int incOutside = 2;
     private int seqNrInside = 0;
-    private int seqNrOutside = 0;
+     int seqNrOutside = 0;
 
 
 
     //******* Handlers ******
-    protected final Handler<GetInitialAssignments> initialAssignmentHandler = new Handler<GetInitialAssignments>() {
+   /* protected final Handler<GetInitialAssignments> initialAssignmentHandler = new Handler<GetInitialAssignments>() {
 
         @Override
         public void handle(GetInitialAssignments event) {
             LOG.info("Generating LookupTable...");
             LookupTable lut = LookupTable.generate(event.nodes);
             LOG.debug("Generated assignments:\n{}", lut);
-            trigger(new InitialAssignments(lut), boot);
+            trigger(new InitialAssignments(lut), net);
+        }
+    };*/
+
+    protected final ClassMatchedHandler<GetInitialAssignments, Message> initialAssignmentHandler = new ClassMatchedHandler<GetInitialAssignments, Message>() {
+        @Override
+        public void handle(GetInitialAssignments getInitialAssignments, Message message) {
+            LOG.info("Generating LookupTable...");
+            LookupTable lut = LookupTable.generate(getInitialAssignments.nodes);
+            LOG.debug("Generated assignments:\n{}", lut);
+            trigger(new Message(self, message.getSource(), new InitialAssignments(lut)), net);
         }
     };
+
     protected final Handler<Booted> bootHandler = new Handler<Booted>() {
 
         @Override
@@ -111,6 +122,7 @@ public class VSOverlayManager extends ComponentDefinition {
             }
         }
     };
+
     protected final ClassMatchedHandler<RouteMsg, Message> routeHandler = new ClassMatchedHandler<RouteMsg, Message>() {
 
         @Override
@@ -131,6 +143,7 @@ public class VSOverlayManager extends ComponentDefinition {
             trigger(new Message(self, target, event.msg), net);
         }
     };
+
     protected final ClassMatchedHandler<Connect, Message> connectHandler = new ClassMatchedHandler<Connect, Message>() {
 
         @Override
@@ -173,14 +186,19 @@ public class VSOverlayManager extends ComponentDefinition {
 
             if(!aliveOutside.isEmpty() && !suspectOutside.isEmpty()){
                 tearDown();
+                LOG.debug("I am leader:  " + self +   " and received a heartbeat too late and will increment my timer now");
+
                 startTimerLeader(incOutside + 1);
                 seqNrOutside += 1;
+                LOG.debug("seqNr has now been incremented to: " + seqNrOutside);
             }
 
             for(int i = 0; i< monitoringOutside.size(); i++){
                 if(!aliveOutside.contains(monitoringOutside.get(i)) && !suspectOutside.contains(monitoringOutside.get(i))){
+                    LOG.debug("I am leader: " + self + " and I am suspecting distributor" + distributor + " with seqNr" + seqNrOutside);
                     suspectOutside.add(monitoringOutside.get(i));
                 }else if(aliveOutside.contains(monitoringOutside.get(i)) && suspectOutside.contains(monitoringOutside.get(i))){
+                    LOG.debug("I am leader: " + self + " and I am suspecting distributor with seqNr" + seqNrOutside);
                     suspectOutside.remove(monitoringOutside.get(i));
                 }
             }
@@ -275,7 +293,7 @@ public class VSOverlayManager extends ComponentDefinition {
     }
 
     {
-        subscribe(initialAssignmentHandler, boot);
+        subscribe(initialAssignmentHandler, net);
         subscribe(bootHandler, boot);
         subscribe(routeHandler, net);
         subscribe(localRouteHandler, route);
