@@ -6,6 +6,7 @@ import se.kth.id2203.bootstrapping.BootstrapServer;
 import se.kth.id2203.bootstrapping.Bootstrapping;
 import se.kth.id2203.distributor.DistributionPort;
 import se.kth.id2203.distributor.DistributorComponent;
+import se.kth.id2203.kvstore.KVPort;
 import se.kth.id2203.kvstore.KVService;
 import se.kth.id2203.networking.NetAddress;
 import se.kth.id2203.overlay.Routing;
@@ -42,7 +43,8 @@ public class ParentComponent
             connect(timer, overlay.getNegative(Timer.class), Channel.TWO_WAY);
 
             // KV
-            connect(overlay.getPositive(Routing.class), kv.getNegative(Routing.class), Channel.TWO_WAY);
+            connect(overlay.getPositive(KVPort.class), kv.getNegative(KVPort.class), Channel.TWO_WAY);
+           connect(overlay.getPositive(Routing.class), kv.getNegative(Routing.class), Channel.TWO_WAY);
             connect(net, kv.getNegative(Network.class), Channel.TWO_WAY);
 
 

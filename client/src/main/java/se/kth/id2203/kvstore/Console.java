@@ -58,6 +58,7 @@ public class Console implements Runnable {
     private final Map<String, Command> commands = new HashMap<>();
     private final int padTo;
 
+
     public Console(ClientService service) {
         this.service = service;
     }
@@ -67,8 +68,15 @@ public class Console implements Runnable {
 
             @Override
             public boolean execute(String[] cmdline, ClientService worker) {
-                if (cmdline.length == 2) {
-                    Future<OpResponse> fr = worker.op(cmdline[1]);
+                if (cmdline.length == 4) {
+                    Future<OpResponse> fr;
+                    if(cmdline[1].equalsIgnoreCase("put") || cmdline[1].equalsIgnoreCase("get")
+                            || cmdline[1].equalsIgnoreCase("cas") ) {
+                        fr = worker.op(cmdline[1], cmdline[2], cmdline[3]);
+                    }else{
+                        out.println("You must only use operations such as: put, get or cas");
+                        return true;
+                    }
                     out.println("Operation sent! Awaiting response...");
                     try {
                         OpResponse r = fr.get();
@@ -86,7 +94,7 @@ public class Console implements Runnable {
 
             @Override
             public String usage() {
-                return "op <key>";
+                return "op <operation> <key> <value>";
             }
 
             @Override
@@ -184,7 +192,7 @@ public class Console implements Runnable {
                 if (line.isEmpty()) {
                     continue;
                 }
-                String[] cmdline = line.split(" ", 2);
+                String[] cmdline = line.split(" ", 4);
                 String cmd = cmdline[0];
                 Command c = commands.get(cmd);
                 if (c == null) {

@@ -23,8 +23,6 @@
  */
 package se.kth.id2203.overlay;
 
-import com.larskroll.common.J6;
-
 import java.util.ArrayList;
 import java.util.UUID;
 
@@ -36,6 +34,10 @@ import se.kth.id2203.bootstrapping.GetInitialAssignments;
 import se.kth.id2203.bootstrapping.InitialAssignments;
 import se.kth.id2203.distributor.LeaderNotification;
 import se.kth.id2203.failuredetection.*;
+import se.kth.id2203.kvstore.KVEvent;
+import se.kth.id2203.kvstore.KVPort;
+import se.kth.id2203.kvstore.OpResponse;
+import se.kth.id2203.kvstore.Operation;
 import se.kth.id2203.networking.Message;
 import se.kth.id2203.networking.NetAddress;
 import se.sics.kompics.ClassMatchedHandler;
@@ -66,6 +68,7 @@ public class VSOverlayManager extends ComponentDefinition {
     protected final Positive<Bootstrapping> boot = requires(Bootstrapping.class);
     protected final Positive<Network> net = requires(Network.class);
     protected final Positive<Timer> timer = requires(Timer.class);
+    protected final Negative<KVPort> clientRequest = provides(KVPort.class);
     //******* Fields ******
 
     final NetAddress self = config().getValue("id2203.project.address", NetAddress.class);
@@ -83,7 +86,9 @@ public class VSOverlayManager extends ComponentDefinition {
     private int incInside = 2;
     private int incOutside = 2;
     private int seqNrInside = 0;
+    NetAddress client = null;
      int seqNrOutside = 0;
+
 
 
 
@@ -123,7 +128,7 @@ public class VSOverlayManager extends ComponentDefinition {
         }
     };
 
-    protected final ClassMatchedHandler<RouteMsg, Message> routeHandler = new ClassMatchedHandler<RouteMsg, Message>() {
+ /*   protected final ClassMatchedHandler<RouteMsg, Message> routeHandler = new ClassMatchedHandler<RouteMsg, Message>() {
 
         @Override
         public void handle(RouteMsg content, Message context) {
@@ -143,7 +148,7 @@ public class VSOverlayManager extends ComponentDefinition {
             trigger(new Message(self, target, event.msg), net);
         }
     };
-
+*/
     protected final ClassMatchedHandler<Connect, Message> connectHandler = new ClassMatchedHandler<Connect, Message>() {
 
         @Override
@@ -157,6 +162,49 @@ public class VSOverlayManager extends ComponentDefinition {
             }
         }
     };
+
+    protected final ClassMatchedHandler<ClientRequestEvent, Message> clientRequestHandler = new ClassMatchedHandler<ClientRequestEvent, Message>() {
+        @Override
+        public void handle(ClientRequestEvent clientRequestEvent, Message message) {
+
+            LOG.info("I am leader {} and I received a route msg with operation {} and key {} value {} ", self,
+                    clientRequestEvent.operation, clientRequestEvent.key, clientRequestEvent.value);
+            LOG.debug("I am leader " + self + " and I received a route msg with operation " + clientRequestEvent.operation+
+                    " and key " + clientRequestEvent.key + " value " + clientRequestEvent.value);
+
+        }
+    };
+
+    protected final ClassMatchedHandler<Operation, Message> opHandler = new ClassMatchedHandler<Operation, Message>() {
+        @Override
+        public void handle(Operation operation, Message message) {
+
+            client = message.getSource();
+            if(operation.operation.equalsIgnoreCase("put")){
+
+                trigger(new KVEvent(operation.operation, operation.key, operation.value, message.getSource(), operation.id), clientRequest);
+
+            }else if(operation.operation.equalsIgnoreCase("get")){
+                trigger(new KVEvent(operation.operation, operation.key, message.getSource(), operation.id), clientRequest);
+
+            }else {
+
+            }
+
+        }
+    };
+
+
+protected final Handler<KVEvent> KVResponse = new Handler<KVEvent>() {
+    @Override
+    public void handle(KVEvent kvEvent) {
+        trigger(new Message(self, kvEvent.client, new OpResponse(kvEvent.id, OpResponse.Code.OK)), net);
+    }
+};
+
+
+
+    /* FAILURE DETECTOR FUNCTIONALITY */
 
     protected final ClassMatchedHandler<LeaderNotification, Message> leaderNotificationHandler = new ClassMatchedHandler<LeaderNotification, Message>() {
 
@@ -248,14 +296,11 @@ public class VSOverlayManager extends ComponentDefinition {
         @Override
         public void handle(LeaderRequestEvent leaderEvent, Message message) {
             LOG.debug("(LHBHandler) I am leader: " + self + " and I received " + leaderEvent.heartbeat + " from: " + message.getSource() + " with seqNr: " + seqNrInside);
-            try {
+
                 LOG.debug("(LHBHandler) I am leader and I will sleep now" );
-                Thread.sleep(10000);
+               // Thread.sleep(10000);
                 LOG.debug("(LHBHandler) I am leader and I have slept now. I will trigger my heartbeat response back to my replicas");
 
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
             trigger(new Message(message.getDestination(), message.getSource(), new LeaderResponseEvent("I'm alive as a leader!")), net);
         }
     };
@@ -267,6 +312,8 @@ public class VSOverlayManager extends ComponentDefinition {
             aliveInside.add(message.getSource());
         }
     };
+
+
 
     @Override
     public void tearDown() {
@@ -295,8 +342,11 @@ public class VSOverlayManager extends ComponentDefinition {
     {
         subscribe(initialAssignmentHandler, net);
         subscribe(bootHandler, boot);
-        subscribe(routeHandler, net);
-        subscribe(localRouteHandler, route);
+     //   subscribe(routeHandler, net);
+     //   subscribe(localRouteHandler, route);
+        subscribe(KVResponse, clientRequest);
+        subscribe(opHandler, net);
+        subscribe(clientRequestHandler,net);
         subscribe(connectHandler, net);
         subscribe(leaderNotificationHandler, net);
         subscribe(DHBHandler, timer);

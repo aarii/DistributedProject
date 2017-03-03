@@ -7,10 +7,7 @@ import se.kth.id2203.failuredetection.DistributorRequestEvent;
 import se.kth.id2203.failuredetection.DistributorResponseEvent;
 import se.kth.id2203.networking.Message;
 import se.kth.id2203.networking.NetAddress;
-import se.kth.id2203.overlay.Connect;
-import se.kth.id2203.overlay.LookupTable;
-import se.kth.id2203.overlay.RouteMsg;
-import se.kth.id2203.overlay.Routing;
+import se.kth.id2203.overlay.*;
 import se.sics.kompics.*;
 import se.sics.kompics.network.Network;
 import se.sics.kompics.timer.Timer;
@@ -32,8 +29,10 @@ public class DistributorComponent extends ComponentDefinition {
     protected final Positive<Timer> timer = requires(Timer.class);
     private UUID timeoutId;
     protected LookupTable lut = new LookupTable();
+    protected int groupDivision = 0;
+    protected int keyInterval = Integer.MAX_VALUE;
 
-
+    protected  ArrayList<Integer> grpValHolder = null;
 
     protected final Handler<SendLookupTable> lookUpTableHandler = new Handler<SendLookupTable>() {
 
@@ -44,6 +43,13 @@ public class DistributorComponent extends ComponentDefinition {
             LOG.debug("SendLookupTable är " + table);
             LOG.debug("na.getNodes är:" + table.getNodes());
 
+            groupDivision = table.getNodes().size();
+            grpValHolder = new ArrayList<Integer>(groupDivision);
+
+            setKeyIntervals();
+
+
+            LOG.debug("groupDivision är " + groupDivision + " och keyInterval är " + keyInterval);
             for(ArrayList<NetAddress> group : table.getNodes()){
 
                 for(int i = 1; i<group.size(); i++){
@@ -56,14 +62,33 @@ public class DistributorComponent extends ComponentDefinition {
         }
     };
 
+    private void setKeyIntervals() {
+
+        for(int i = 0; i<groupDivision-1; i++){
+            grpValHolder.add((i+1) * (keyInterval/groupDivision));
+        }
+
+        for(int i = 0; i<groupDivision-1; i++){
+            LOG.debug("grpValHolder #" + i + " innehåller " + grpValHolder.get(i));
+        }
+
+    }
+
     protected final ClassMatchedHandler<RouteMsg, Message> routeHandler = new ClassMatchedHandler<RouteMsg, Message>() {
 
         @Override
         public void handle(RouteMsg content, Message context) {
-            ArrayList<NetAddress> partition = lut.lookup(Integer.parseInt(content.key));
-            NetAddress target = J6.randomElement(partition);
-            LOG.info("Forwarding message for key {} to {}", content.key, target);
-            trigger(new Message(context.getSource(), target, content.msg), net);
+           // ArrayList<NetAddress> partition = lut.lookup(Integer.parseInt(content.key));
+           // NetAddress target = J6.randomElement(partition);
+
+            for(int i = 0; i<grpValHolder.size(); i++){
+                if (Integer.parseInt(content.key) <= grpValHolder.get(i)){
+                    LOG.info("Forwarding message with operation {} for key {} with value {} to {}",content.operation, content.key, content.value, leaders.get(i));
+                    trigger(new Message(context.getSource(), leaders.get(i), content.msg), net);
+                    break;
+                }
+            }
+
         }
     };
     protected final Handler<RouteMsg> localRouteHandler = new Handler<RouteMsg>() {
@@ -81,7 +106,7 @@ public class DistributorComponent extends ComponentDefinition {
         @Override
         public void handle(DistributorRequestEvent distributorRequestEvent, Message message) {
 
-            LOG.debug("ahsbahbshabsa I am distributor: " + self + " and I received " + distributorRequestEvent.heartbeat + " from " + message.getSource());
+            LOG.debug("I am distributor: " + self + " and I received " + distributorRequestEvent.heartbeat + " from " + message.getSource());
             trigger(new Message(self, message.getSource(), new DistributorResponseEvent("Yes I am alive as a distributor")), net);
 
         }
@@ -103,14 +128,11 @@ public class DistributorComponent extends ComponentDefinition {
     };
 
 
-
-
     {
         subscribe(connectHandler, net);
         subscribe(DHBHandler, net);
         subscribe(lookUpTableHandler, distribution);
         subscribe(routeHandler, net);
         //subscribe(localRouteHandler, route);
-
 }
 }

@@ -63,8 +63,8 @@ public class ScenarioClient extends ComponentDefinition {
         public void handle(Start event) {
             int messages = res.get("messages", Integer.class);
             for (int i = 0; i < messages; i++) {
-                Operation op = new Operation("test" + i);
-                RouteMsg rm = new RouteMsg(op.key, op); // don't know which partition is responsible, so ask the bootstrap server to forward it
+                Operation op = new Operation("operation", "test", "value" + i);
+                RouteMsg rm = new RouteMsg(op.operation,op.key, op.value, op); // don't know which partition is responsible, so ask the bootstrap server to forward it
                 trigger(new Message(self, server, rm), net);
                 pending.put(op.id, op.key);
                 LOG.info("Sending {}", op);
