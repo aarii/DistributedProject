@@ -8,6 +8,6 @@ import se.sics.kompics.PortType;
 public class KVPort extends PortType {
     {
         indication(KVEvent.class);
-        request(KVEvent.class);
+        //request(KVEvent.class);
     }
 }

@@ -25,9 +25,12 @@ package se.kth.id2203.kvstore;
 
 import com.google.common.base.Optional;
 import com.google.common.util.concurrent.SettableFuture;
+
+import java.io.Serializable;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import org.slf4j.LoggerFactory;
 import se.kth.id2203.networking.Message;
@@ -106,9 +109,11 @@ public class ClientService extends ComponentDefinition {
         
         @Override
         public void handle(OpWithFuture event) {
-            RouteMsg rm = new RouteMsg(event.op.operation, event.op.key, event.op.value, event.op) ; // don't know which partition is responsible, so ask the bootstrap server to forward it
-            trigger(new Message(self, server, rm), net);
-            pending.put(event.op.id, event.f);
+            LOG.info("Operation sent! Awaiting response...");
+            RouteMsg rm = new RouteMsg(event.op.operation, event.op.key, event.op.value, event.op); // don't know which partition is responsible, so ask the bootstrap server to forward it
+                trigger(new Message(self, server, rm), net);
+                pending.put(event.op.id, event.f);
+
         }
     };
     protected final ClassMatchedHandler<OpResponse, Message> responseHandler = new ClassMatchedHandler<OpResponse, Message>() {
@@ -116,11 +121,22 @@ public class ClientService extends ComponentDefinition {
         @Override
         public void handle(OpResponse content, Message context) {
             LOG.debug("Got OpResponse: {}", content);
-            SettableFuture<OpResponse> sf = pending.remove(content.id);
-            if (sf != null) {
-                sf.set(content);
-            } else {
-                LOG.warn("ID {} was not pending! Ignoring response.", content.id);
+            if(content.operation.equalsIgnoreCase("put")) {
+                LOG.info("Operation complete! Response was: " + content.status);
+            }
+
+            if(content.operation.equalsIgnoreCase("get")){
+
+                if(!content.status.equals(OpResponse.Code.NOT_FOUND)) {
+                    LOG.info("Operation complete! Response was: " + content.value);
+                }else{
+                    LOG.info("Operation failed! Response was: " + content.status);
+                }
+
+            }
+
+            if(content.operation.equalsIgnoreCase("cas")){
+
             }
         }
     };
@@ -139,6 +155,14 @@ public class ClientService extends ComponentDefinition {
         trigger(owf, onSelf);
         return owf.f;
     }
+
+    Future<OpResponse> op(String operation, String key) {
+        Operation op = new Operation(operation, key);
+        OpWithFuture owf = new OpWithFuture(op);
+        trigger(owf, onSelf);
+        return owf.f;
+    }
+
     
     public static class OpWithFuture implements KompicsEvent {
         

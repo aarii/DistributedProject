@@ -25,19 +25,16 @@ package se.kth.id2203.overlay;
 
 import java.util.ArrayList;
 import java.util.UUID;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import se.kth.id2203.Value;
 import se.kth.id2203.bootstrapping.Booted;
 import se.kth.id2203.bootstrapping.Bootstrapping;
 import se.kth.id2203.bootstrapping.GetInitialAssignments;
 import se.kth.id2203.bootstrapping.InitialAssignments;
-import se.kth.id2203.distributor.LeaderNotification;
+import se.kth.id2203.distributor.DistributorNotification;
 import se.kth.id2203.failuredetection.*;
-import se.kth.id2203.kvstore.KVEvent;
-import se.kth.id2203.kvstore.KVPort;
-import se.kth.id2203.kvstore.OpResponse;
-import se.kth.id2203.kvstore.Operation;
+import se.kth.id2203.kvstore.*;
 import se.kth.id2203.networking.Message;
 import se.kth.id2203.networking.NetAddress;
 import se.sics.kompics.ClassMatchedHandler;
@@ -45,6 +42,7 @@ import se.sics.kompics.ComponentDefinition;
 import se.sics.kompics.Handler;
 import se.sics.kompics.Negative;
 import se.sics.kompics.Positive;
+import se.sics.kompics.network.MessageNotify;
 import se.sics.kompics.network.Network;
 import se.sics.kompics.timer.CancelPeriodicTimeout;
 import se.sics.kompics.timer.SchedulePeriodicTimeout;
@@ -75,34 +73,23 @@ public class VSOverlayManager extends ComponentDefinition {
     NetAddress distributor = null;
     private LookupTable lut = null;
     private ArrayList<NetAddress> group = null;
-    public boolean leader = false;
     private UUID timeoutId;
-    private ArrayList<NetAddress> aliveInside = new ArrayList<>();
-    private ArrayList<NetAddress> suspectInside = new ArrayList<>();
-    private ArrayList<NetAddress> monitoringInside = new ArrayList<>();
-    private ArrayList<NetAddress> aliveOutside = new ArrayList<>();
-    private ArrayList<NetAddress> suspectOutside = new ArrayList<>();
-    private ArrayList<NetAddress> monitoringOutside = new ArrayList<>();
-    private int incInside = 2;
-    private int incOutside = 2;
-    private int seqNrInside = 0;
+    private ArrayList<NetAddress> alive = new ArrayList<>();
+    private ArrayList<NetAddress> suspect = new ArrayList<>();
+    private ArrayList<NetAddress> monitoring = new ArrayList<>();
+    private int delta = 2;
+    int seqNr = 0;
     NetAddress client = null;
-     int seqNrOutside = 0;
+    boolean sent = false;
+
+    protected int majorityCounter = 0;
+    protected int epsilon = 2;
+    protected ArrayList<Value> groupValues = new ArrayList<>();
+    protected int timestamp = 0;
+    protected ArrayList<Integer> timestamps = new ArrayList<>();
 
 
 
-
-    //******* Handlers ******
-   /* protected final Handler<GetInitialAssignments> initialAssignmentHandler = new Handler<GetInitialAssignments>() {
-
-        @Override
-        public void handle(GetInitialAssignments event) {
-            LOG.info("Generating LookupTable...");
-            LookupTable lut = LookupTable.generate(event.nodes);
-            LOG.debug("Generated assignments:\n{}", lut);
-            trigger(new InitialAssignments(lut), net);
-        }
-    };*/
 
     protected final ClassMatchedHandler<GetInitialAssignments, Message> initialAssignmentHandler = new ClassMatchedHandler<GetInitialAssignments, Message>() {
         @Override
@@ -122,33 +109,14 @@ public class VSOverlayManager extends ComponentDefinition {
                 LOG.info("Got NodeAssignment, overlay ready.");
                 lut = (LookupTable) event.assignment;
                 group = lut.get(0);
+                initFailureDetector();
             } else {
                 LOG.error("Got invalid NodeAssignment type. Expected: LookupTable; Got: {}", event.assignment.getClass());
             }
         }
     };
 
- /*   protected final ClassMatchedHandler<RouteMsg, Message> routeHandler = new ClassMatchedHandler<RouteMsg, Message>() {
 
-        @Override
-        public void handle(RouteMsg content, Message context) {
-            ArrayList<NetAddress> partition = lut.lookup(Integer.parseInt(content.key));
-            NetAddress target = J6.randomElement(partition);
-            LOG.info("Forwarding message for key {} to {}", content.key, target);
-            trigger(new Message(context.getSource(), target, content.msg), net);
-        }
-    };
-    protected final Handler<RouteMsg> localRouteHandler = new Handler<RouteMsg>() {
-
-        @Override
-        public void handle(RouteMsg event) {
-            ArrayList<NetAddress> partition = lut.lookup(Integer.parseInt(event.key));
-            NetAddress target = J6.randomElement(partition);
-            LOG.info("Routing message for key {} to {}", event.key, target);
-            trigger(new Message(self, target, event.msg), net);
-        }
-    };
-*/
     protected final ClassMatchedHandler<Connect, Message> connectHandler = new ClassMatchedHandler<Connect, Message>() {
 
         @Override
@@ -178,181 +146,256 @@ public class VSOverlayManager extends ComponentDefinition {
     protected final ClassMatchedHandler<Operation, Message> opHandler = new ClassMatchedHandler<Operation, Message>() {
         @Override
         public void handle(Operation operation, Message message) {
-
             client = message.getSource();
             if(operation.operation.equalsIgnoreCase("put")){
+                for(int i = 0; i<group.size(); i++) {
+                    trigger(new Message(self, group.get(i), new RequestTimestampEvent(operation)), net);
+                    LOG.debug("I am " + self + " and I am sending a requesttimestampevent to " + group.get(i));
+                }
+            }
 
-                trigger(new KVEvent(operation.operation, operation.key, operation.value, message.getSource(), operation.id), clientRequest);
+            if(operation.operation.equalsIgnoreCase("get")) {
+                for (int i = 0; i < group.size(); i++) {
+                    trigger(new Message(self, group.get(i), new RequestGetValuesEvent(operation)), net);
+                    LOG.debug("I am " + self + " and I am sending a requestgetvaluesevent to " + group.get(i));
 
-            }else if(operation.operation.equalsIgnoreCase("get")){
-                trigger(new KVEvent(operation.operation, operation.key, message.getSource(), operation.id), clientRequest);
-
-            }else {
-
+                }
             }
 
         }
     };
 
 
-protected final Handler<KVEvent> KVResponse = new Handler<KVEvent>() {
-    @Override
-    public void handle(KVEvent kvEvent) {
-        trigger(new Message(self, kvEvent.client, new OpResponse(kvEvent.id, OpResponse.Code.OK)), net);
-    }
-};
+    protected final ClassMatchedHandler<RequestGetValuesEvent, Message> requestGetValueHandler = new ClassMatchedHandler<RequestGetValuesEvent, Message>() {
+        @Override
+        public void handle(RequestGetValuesEvent requestGetValuesEvent, Message message) {
+            Operation op = requestGetValuesEvent.operation;
+            LOG.debug("I am " + self + " and I received a requestGetvalue and will now do a kvevent");
+            trigger(new KVEvent(op.operation, op.key,op.id, message.getSource()), clientRequest);
+
+        }
+    };
+
+    protected final ClassMatchedHandler<RequestTimestampEvent, Message> requestTimestampHandler = new ClassMatchedHandler<RequestTimestampEvent, Message>() {
+        @Override
+        public void handle(RequestTimestampEvent requestTimestampEvent, Message message) {
+            LOG.debug("I am " + self + " and I received a requesttimestampevent and will now response ");
+            trigger(new Message(self, message.getSource(), new ResponseTimestampEvent(requestTimestampEvent.operation, timestamp)), net);
+
+        }
+    };
+
+    protected final ClassMatchedHandler<ResponseTimestampEvent, Message> responseTimestampHandler = new ClassMatchedHandler<ResponseTimestampEvent, Message>() {
+        @Override
+        public void handle(ResponseTimestampEvent responseTimestampEvent, Message message) {
+            Operation operation = responseTimestampEvent.operation;
+            timestamps.add(responseTimestampEvent.timestamp);
+            if(timestamps.size() == epsilon){
+                int maxTimestamp = 0;
+                for(int i = 0; i<timestamps.size(); i++){
+                    if(maxTimestamp < timestamps.get(i)){
+                        maxTimestamp = timestamps.get(i);
+                    }
+                }
+                        timestamps.clear();
+                if(operation.operation.equalsIgnoreCase("put")){
+                    for(int i = 0; i<group.size(); i++) {
+                        LOG.debug("I am " + self + " and send a kvrequest to " + group.get(i));
+                        trigger(new Message(self,group.get(i),new KVRequest(operation.operation, operation.key, operation.value, operation.id, self, maxTimestamp +1)), net);
+                    }
+                }
+            }
+        }
+    };
+
+    protected final ClassMatchedHandler<KVRequest, Message> KVRequestHandler = new ClassMatchedHandler<KVRequest, Message>() {
+        @Override
+        public void handle(KVRequest kvRequest, Message message) {
+            if(kvRequest.operation.equalsIgnoreCase("put")){
+                if(timestamp <= kvRequest.maxTimestamp) {
+                    timestamp = kvRequest.maxTimestamp;
+                    LOG.debug("I am " + self + " and I will do a kvevent now");
+                    trigger(new KVEvent(kvRequest.operation, kvRequest.key, kvRequest.value, kvRequest.id, kvRequest.groupmember, timestamp, group), clientRequest);
+                }
+            }
+        }
+    };
+
+    protected final ClassMatchedHandler<KVResponse, Message> KVResponseHandler = new ClassMatchedHandler<KVResponse, Message>() {
+        @Override
+        public void handle(KVResponse kvResponse, Message message) {
+            LOG.debug("I am "+ self + " and I received an operation: " + kvResponse.operation);
+            if(kvResponse.operation.equalsIgnoreCase("put")) {
+                majorityCounter++;
+                LOG.debug("I am " + self + " and majorityCounter is now in put  " + majorityCounter);
+
+
+                if(sent == true){
+                    majorityCounter = 0;
+                    LOG.debug("I am " + self + " and majorityCounter is now in put  " + majorityCounter);
+                    sent = false;
+                }
+
+                if (majorityCounter == epsilon) {
+                    LOG.debug("ÄR I IF I MAJORITYCOUNTER");
+                    trigger(new Message(self, client, new OpResponse(kvResponse.operation, kvResponse.id, OpResponse.Code.OK)), net);
+                    sent = true;
+                    majorityCounter = 0;
+                }
+
+            }else if(kvResponse.operation.equalsIgnoreCase("get")){
+
+                LOG.debug("Vi kommer in i KVResponseHandler get ");
+                groupValues.add(kvResponse.v);
+                LOG.debug("I am " + self + " and majoritycounter is in get: " + majorityCounter);
+
+                if(sent == true){
+                    groupValues.clear();
+                    LOG.debug("I am " + self + " and majorityCounter is now in get  " + majorityCounter);
+                    sent = false;
+                }
+
+                    if(groupValues.size() == epsilon){
+
+                        for(int i = 0; i<groupValues.size(); i++){
+                            if(kvResponse.value != null){
+                                if(kvResponse.value.equalsIgnoreCase("No value for that key")) {
+                                    trigger(new Message(self, client, new OpResponse(kvResponse.operation, kvResponse.id, kvResponse.value, OpResponse.Code.NOT_FOUND)), net);
+                                    sent = true;
+                                    groupValues.clear();
+                                    break;
+                                }
+                            }
+                            LOG.debug("groupValues size är " + groupValues.size() + " groupValues get i är " + groupValues.get(i).value + " " +
+                                    "groupValues i + 1 är " + groupValues.get(i+1).value);
+                            if(groupValues.get(i).timestamp < groupValues.get(i+1).timestamp){
+                                LOG.debug("LALALALALALALALALA VÄRDET ÄR " + groupValues.get(i+1).value);
+                                trigger(new Message(self, client, new OpResponse(kvResponse.operation, kvResponse.id,  String.valueOf(groupValues.get(i + 1).value), OpResponse.Code.OK)), net);
+                                sent = true;
+                                groupValues.clear();
+                                break;
+
+                            }else{
+
+                                LOG.debug("LALALALALALALALALA VÄRDET ÄR " + groupValues.get(i).value);
+                                trigger(new Message(self, client, new OpResponse(kvResponse.operation, kvResponse.id, String.valueOf(groupValues.get(i).value), OpResponse.Code.OK)), net);
+                                sent = true;
+                                groupValues.clear();
+                                break;
+                            }
+
+                        }
+                    }
+            }
+        }
+    };
+
 
 
 
     /* FAILURE DETECTOR FUNCTIONALITY */
 
-    protected final ClassMatchedHandler<LeaderNotification, Message> leaderNotificationHandler = new ClassMatchedHandler<LeaderNotification, Message>() {
+    protected final ClassMatchedHandler<DistributorNotification, Message> distributorNotificationHandler = new ClassMatchedHandler<DistributorNotification, Message>() {
 
         @Override
-        public void handle(LeaderNotification leaderNotification, Message message) {
-            String notification = leaderNotification.notification;
+        public void handle(DistributorNotification distributorNotification, Message message) {
+
             distributor = message.getSource();
-            if(notification.equalsIgnoreCase("You are the leader")){
-                leader = true;
-                monitoringOutside.add(distributor);
-                aliveInside.add(distributor);
-                LOG.debug(self + " got: " + notification + " and leader parameter is now: " + leader);
-                startTimerLeader(incOutside);
-
-            }else {
-                monitoringInside.add(group.get(0));
-                aliveInside.add(group.get(0));
-                LOG.debug(self + " got: " + notification + " and leader parameter is now: " + leader);
-                startTimerReplica(incInside);
-            }
+            LOG.debug("I am " + self + " and I received a message from my distributor with address: " + distributor);
         }
     };
 
-    protected final Handler<DistributorTimeout> DHBHandler = new Handler<DistributorTimeout>() {
+    protected final Handler<GroupTimeout> heartBeatHandler = new Handler<GroupTimeout>() {
         @Override
-        public void handle(DistributorTimeout distributorTimeout) {
+        public void handle(GroupTimeout groupTimeout) {
 
-            if(!aliveOutside.isEmpty() && !suspectOutside.isEmpty()){
+            if(!alive.isEmpty() && !suspect.isEmpty()){
+                LOG.debug("I am:  " + self +   " and received a heartbeat too late from a group member and will increment my timer now");
                 tearDown();
-                LOG.debug("I am leader:  " + self +   " and received a heartbeat too late and will increment my timer now");
-
-                startTimerLeader(incOutside + 1);
-                seqNrOutside += 1;
-                LOG.debug("seqNr has now been incremented to: " + seqNrOutside);
+                delta +=1;
+                startTimer(delta);
+                seqNr += 1;
+                LOG.debug("seqNr has now been incremented to: " + seqNr);
             }
 
-            for(int i = 0; i< monitoringOutside.size(); i++){
-                if(!aliveOutside.contains(monitoringOutside.get(i)) && !suspectOutside.contains(monitoringOutside.get(i))){
-                    LOG.debug("I am leader: " + self + " and I am suspecting distributor" + distributor + " with seqNr" + seqNrOutside);
-                    suspectOutside.add(monitoringOutside.get(i));
-                }else if(aliveOutside.contains(monitoringOutside.get(i)) && suspectOutside.contains(monitoringOutside.get(i))){
-                    LOG.debug("I am leader: " + self + " and I am suspecting distributor with seqNr" + seqNrOutside);
-                    suspectOutside.remove(monitoringOutside.get(i));
+            for(int i = 0; i< monitoring.size(); i++){
+                if(!alive.contains(monitoring.get(i)) && !suspect.contains(monitoring.get(i))){
+                    LOG.debug("I am: " + self + " and I am suspecting group member: " + monitoring.get(i) + " with seqNr" + seqNr);
+                    LOG.warn("");
+                    suspect.add(monitoring.get(i));
+                    if(suspect.size() == epsilon){
+                        LOG.warn("WARNING TOO FEW MEMBERS IN GROUP!!!!!!!!!!!!");
+                    }
+                }else if(alive.contains(monitoring.get(i)) && suspect.contains(monitoring.get(i))){
+                    LOG.debug("I am: " + self + " and I am unsuspecting group member: " + monitoring.get(i) +  " with seqNr" + seqNr);
+                    suspect.remove(monitoring.get(i));
                 }
+
+                trigger(new Message(self, monitoring.get(i) , new HeartbeatRequestEvent("Are you alive group member?")), net);
             }
+            alive.clear();
+        }
+    };
 
-            trigger(new Message(self, distributor, new DistributorRequestEvent("Are you alive distributor?")), net);
-            aliveOutside.clear();
+
+    protected final ClassMatchedHandler<HeartbeatRequestEvent, Message> HBRequestHandler = new ClassMatchedHandler<HeartbeatRequestEvent, Message>() {
+        @Override
+        public void handle(HeartbeatRequestEvent heartbeatRequest, Message message) {
+            trigger(new Message(self, message.getSource(), new HeartbeatResponseEvent("I am alive as a replica")), net);
 
         }
     };
 
-    protected final Handler<ReplicaTimeout> RHBHandler = new Handler<ReplicaTimeout>() {
-        @Override
-        public void handle(ReplicaTimeout replicaTimeout) {
-
-            if(!aliveInside.isEmpty() && !suspectInside.isEmpty()){
-                LOG.debug("I am:  " + self +   " and received a heartbeat too late and will increment my timer now");
-                tearDown();
-                startTimerReplica(incInside + 1);
-                seqNrInside += 1;
-                LOG.debug("seqNr has now been incremented to: " + seqNrInside);
-            }
-            for(int i = 0; i< monitoringInside.size(); i++){
-
-                if(!aliveInside.contains(monitoringInside.get(i)) && !suspectInside.contains(monitoringInside.get(i))){
-                    LOG.debug("I am: " + self + "  and I am suspecting the leader: " + monitoringInside.get(i) + " with seqNr: " + seqNrInside);
-                    suspectInside.add(monitoringInside.get(i));
-                }else if(aliveInside.contains(monitoringInside.get(i)) && suspectInside.contains(monitoringInside.get(i))){
-                    LOG.debug("I am: " + self + "  and I stopped suspecting the leader: " + suspectInside.get(i) + " with seqNr " + seqNrInside);
-                    suspectInside.remove(monitoringInside.get(i));
-                }
-            }
-                trigger(new Message(self, group.get(0), new LeaderRequestEvent("Are you alive leader?")), net);
-                aliveInside.clear();
-
-        }
-    };
-
-    protected final ClassMatchedHandler<DistributorResponseEvent, Message> distributorResponseHandler = new ClassMatchedHandler<DistributorResponseEvent, Message>(){
+    protected final ClassMatchedHandler<HeartbeatResponseEvent, Message> HBResponseHandler = new ClassMatchedHandler<HeartbeatResponseEvent, Message>(){
 
         @Override
-        public void handle(DistributorResponseEvent distributorResponse, Message message) {
-            LOG.debug("I am the leader: " + self + " and I got an acknowledgement from the distributor: " + message.getSource() + " with message: " + distributorResponse.heartbeat);
-        }
-    };
-
-    protected final ClassMatchedHandler<LeaderRequestEvent, Message> LHBHandler = new ClassMatchedHandler<LeaderRequestEvent, Message>() {
-        @Override
-        public void handle(LeaderRequestEvent leaderEvent, Message message) {
-            LOG.debug("(LHBHandler) I am leader: " + self + " and I received " + leaderEvent.heartbeat + " from: " + message.getSource() + " with seqNr: " + seqNrInside);
-
-                LOG.debug("(LHBHandler) I am leader and I will sleep now" );
-               // Thread.sleep(10000);
-                LOG.debug("(LHBHandler) I am leader and I have slept now. I will trigger my heartbeat response back to my replicas");
-
-            trigger(new Message(message.getDestination(), message.getSource(), new LeaderResponseEvent("I'm alive as a leader!")), net);
-        }
-    };
-
-    protected final ClassMatchedHandler<LeaderResponseEvent, Message> leaderResponseHandler =  new ClassMatchedHandler<LeaderResponseEvent, Message>() {
-        @Override
-        public void handle(LeaderResponseEvent leaderResponseEvent, Message message) {
-            LOG.debug("I am" + self + " and I got an acknowledgement from leader: " + message.getSource() + " that he is alive");
-            aliveInside.add(message.getSource());
+        public void handle(HeartbeatResponseEvent heartbeatResponse, Message message) {
+            LOG.debug("I am: " + self + " and I got an acknowledgement from group member: " + message.getSource() + " that he is alive");
+            alive.add(message.getSource());
         }
     };
 
 
 
     @Override
-    public void tearDown() {
-        trigger(new CancelPeriodicTimeout(timeoutId), timer);
-    }
+    public void tearDown() { trigger(new CancelPeriodicTimeout(timeoutId), timer); }
 
 
-    public void startTimerLeader(int x){
+    public void startTimer(int delta){
 
-        long timeout = (config().getValue("id2203.project.keepAlivePeriod", Long.class) * x);
+        long timeout = (config().getValue("id2203.project.keepAlivePeriod", Long.class) * delta);
         SchedulePeriodicTimeout spt = new SchedulePeriodicTimeout(timeout, timeout);
-        spt.setTimeoutEvent(new DistributorTimeout(spt));
+        spt.setTimeoutEvent(new GroupTimeout(spt));
         trigger(spt, timer);
         timeoutId = spt.getTimeoutEvent().getTimeoutId();
 
     }
 
-    public void startTimerReplica(int x){
-        long timeout = (config().getValue("id2203.project.keepAlivePeriod", Long.class) * x);
-        SchedulePeriodicTimeout spt = new SchedulePeriodicTimeout(timeout, timeout);
-        spt.setTimeoutEvent(new ReplicaTimeout(spt));
-        trigger(spt, timer);
-        timeoutId = spt.getTimeoutEvent().getTimeoutId();
+    public void initFailureDetector(){
+
+        for(int i = 0; i<group.size(); i++) {
+            if(!group.get(i).equals(self)) {
+                monitoring.add(group.get(i));
+                alive.add(group.get(i));
+            }
+        }
+        startTimer(delta);
     }
 
     {
         subscribe(initialAssignmentHandler, net);
         subscribe(bootHandler, boot);
-     //   subscribe(routeHandler, net);
-     //   subscribe(localRouteHandler, route);
-        subscribe(KVResponse, clientRequest);
         subscribe(opHandler, net);
         subscribe(clientRequestHandler,net);
         subscribe(connectHandler, net);
-        subscribe(leaderNotificationHandler, net);
-        subscribe(DHBHandler, timer);
-        subscribe(LHBHandler, net);
-        subscribe(leaderResponseHandler, net);
-        subscribe(distributorResponseHandler, net);
-        subscribe(RHBHandler, timer);
+        subscribe(distributorNotificationHandler, net);
+        subscribe(heartBeatHandler, timer);
+        //subscribe(HBRequestHandler, net);
+        //subscribe(HBResponseHandler, net);
+        subscribe(KVResponseHandler, net);
+        subscribe(KVRequestHandler, net);
+        subscribe(requestTimestampHandler, net);
+        subscribe(responseTimestampHandler, net);
+        subscribe(requestGetValueHandler, net);
     }
 }

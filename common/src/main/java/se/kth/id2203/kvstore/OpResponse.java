@@ -36,11 +36,21 @@ public class OpResponse implements KompicsEvent, Serializable {
 
     private static final long serialVersionUID = -1668600257615491286L;
 
-    public final UUID id;
-    public final Code status;
+    public UUID id;
+    public Code status;
+    public String value;
+    public String operation;
 
-    public OpResponse(UUID id, Code status) {
+    public OpResponse(String operation, UUID id, Code status) {
+        this.operation = operation;
         this.id = id;
+        this.status = status;
+    }
+
+    public OpResponse(String operation, UUID id, String value, Code status) {
+        this.operation = operation;
+        this.id = id;
+        this.value = value;
         this.status = status;
     }
 

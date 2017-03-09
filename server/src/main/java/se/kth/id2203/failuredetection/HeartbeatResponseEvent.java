@@ -7,7 +7,8 @@ import java.io.Serializable;
 /**
  * Created by Amir on 2017-03-01.
  */
-public class LeaderRequestEvent implements KompicsEvent, Serializable {
+public class HeartbeatResponseEvent implements KompicsEvent, Serializable {
+
     public String heartbeat;
-    public LeaderRequestEvent(String heartbeat){ this.heartbeat = heartbeat;}
+    public HeartbeatResponseEvent(String heartbeat){ this.heartbeat = heartbeat;}
 }

@@ -64,44 +64,70 @@ public class Console implements Runnable {
     }
 
     {
-        commands.put("op", new Command() {
+       commands.put("put", new Command() {
 
             @Override
             public boolean execute(String[] cmdline, ClientService worker) {
-                if (cmdline.length == 4) {
-                    Future<OpResponse> fr;
-                    if(cmdline[1].equalsIgnoreCase("put") || cmdline[1].equalsIgnoreCase("get")
-                            || cmdline[1].equalsIgnoreCase("cas") ) {
-                        fr = worker.op(cmdline[1], cmdline[2], cmdline[3]);
+                if (cmdline.length == 3) {
+
+                    if(cmdline[0].equalsIgnoreCase("put")){
+                    worker.op(cmdline[0], cmdline[1], cmdline[2]);
+
                     }else{
                         out.println("You must only use operations such as: put, get or cas");
                         return true;
                     }
-                    out.println("Operation sent! Awaiting response...");
-                    try {
-                        OpResponse r = fr.get();
-                        out.println("Operation complete! Response was: " + r.status);
-                        return true;
-                    } catch (InterruptedException | ExecutionException ex) {
-                        ex.printStackTrace(out);
-                        return false;
-                    }
+
 
                 } else {
                     return false;
                 }
+
+                return true;
             }
 
             @Override
             public String usage() {
-                return "op <operation> <key> <value>";
+                return "put <key> <value>";
             }
 
             @Override
             public String help() {
-                return "Just a test operation...replace with proper put get";
+                return "Puts a specific value connected with the key in the store";
             }
         });
+
+        commands.put("get", new Command() {
+
+            @Override
+            public boolean execute(String[] cmdline, ClientService worker) {
+                if (cmdline.length == 2) {
+
+                    if(cmdline[0].equalsIgnoreCase("get")) {
+                       worker.op(cmdline[0], cmdline[1]);
+                    }else{
+                        out.println("You must only use operations such as: put, get or cas");
+                        return true;
+                    }
+
+
+                } else {
+                    return false;
+                }
+                return true;
+            }
+
+            @Override
+            public String usage() {
+                return "get <key> ";
+            }
+
+            @Override
+            public String help() {
+                return "Returns a value connected with the specific key";
+            }
+        });
+
         commands.put("help", new Command() {
 
             @Override

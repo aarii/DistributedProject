@@ -89,6 +89,7 @@ public class Main {
             c.apply(cu, ValueMerger.NONE);
 
             Kompics.createAndStart(HostComponent.class);
+            Kompics.waitForTermination();
         } catch (ParseException ex) {
             System.err.println("Invalid commandline options: " + ex.getMessage());
             formatter.printHelp("... <options>", opts);
@@ -96,6 +97,8 @@ public class Main {
         } catch (UnknownHostException ex) {
             System.err.println(ex.getMessage());
             System.exit(1);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
     }
 

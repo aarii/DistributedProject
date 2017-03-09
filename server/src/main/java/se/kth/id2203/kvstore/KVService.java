@@ -25,6 +25,7 @@ package se.kth.id2203.kvstore;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import se.kth.id2203.Value;
 import se.kth.id2203.kvstore.OpResponse.Code;
 import se.kth.id2203.networking.Message;
 import se.kth.id2203.networking.NetAddress;
@@ -35,6 +36,7 @@ import se.sics.kompics.Handler;
 import se.sics.kompics.Positive;
 import se.sics.kompics.network.Network;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -53,7 +55,7 @@ public class KVService extends ComponentDefinition {
     //******* Fields ******
     final NetAddress self = config().getValue("id2203.project.address", NetAddress.class);
 
-    protected Map<Integer, Integer> KVStore = new HashMap<>();
+    protected Map<Integer, Value> KVStore = new HashMap<>();
 
     //******* Handlers ******
 
@@ -70,7 +72,11 @@ public class KVService extends ComponentDefinition {
             int value = 0;
             int refValue = 0;
             UUID id = kvEvent.id;
-            NetAddress client = kvEvent.client;
+            int timestamp = kvEvent.timestamp;
+
+            NetAddress groupmember = kvEvent.groupmember;
+            ArrayList<NetAddress> group = kvEvent.group;
+            LOG.debug("op är " + op  + " groupmember är " + groupmember);
             if(kvEvent.value != null) {
                 value = Integer.parseInt(kvEvent.value);
             }
@@ -79,17 +85,52 @@ public class KVService extends ComponentDefinition {
             }
 
             if (op.equalsIgnoreCase("put")){
-                LOG.debug("VI KOMMER IN I PUT I KVSVERICE");
-                KVStore.put(key,value);
-                trigger(new KVEvent("done", client, id), kv);
+                Value v = new Value(groupmember, timestamp, value);
 
-            }else if(op.equalsIgnoreCase("get")){
-                KVStore.get(key);
-            }else{
-                int temp = KVStore.get(key);
-                if(temp == refValue){
-                    KVStore.put(key, value);
+                if(KVStore.containsKey(key)) {
+                    LOG.debug("VI KOMMER IN I PUT I KVSVERICE groupmember är: " + groupmember + " timestamp är: " + timestamp + " och value är: " + value );
+                    Value v1 = KVStore.get(key);
+                    if(v1.timestamp == timestamp){
+                        for(int i = 0; i < group.size(); i++){
+
+                            if(group.get(i).equals(groupmember)){
+                                KVStore.put(key, v);
+                                trigger(new Message(self, groupmember, new KVResponse("put", id)), net);
+                                break;
+                            }
+                            if(group.get(i).equals(v1.groupmember)){
+                                KVStore.put(key, v1);
+                                trigger(new Message(self, groupmember, new KVResponse("put", id)), net);
+                                break;
+                            }
+                        }
+                    }else {
+                        KVStore.put(key, v);
+                        trigger(new Message(self, groupmember, new KVResponse("put", id)), net);
+                    }
+                }else{
+                    LOG.debug("VI KOMMER IN I PUT Förförsta gången I KVSVERICE groupmember är: " + groupmember + " timestamp är: " + timestamp + " och value är: " + value );
+                    KVStore.put(key, v);
+                    trigger(new Message(self, groupmember, new KVResponse("put", id)), net);
                 }
+
+
+            }
+
+            if(op.equalsIgnoreCase("get")){
+
+                if(KVStore.containsKey(key)){
+                    LOG.debug("groupmember är " + groupmember);
+                    LOG.debug("VI ÄR I EN GET I KVSERVICE MED KEY " + key + " MED VALUE " + KVStore.get(key).value);
+                    trigger(new Message(self, groupmember, new KVResponse("get", KVStore.get(key))), net);
+                }else{
+                    trigger(new Message(self, groupmember, new KVResponse("get", id, String.valueOf(key), "No value for that key")), net);
+
+                }
+
+            }
+            if(op.equalsIgnoreCase("cas")){
+
             }
 
         }

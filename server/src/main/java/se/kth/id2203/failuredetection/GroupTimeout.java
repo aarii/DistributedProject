@@ -4,11 +4,11 @@ import se.sics.kompics.timer.SchedulePeriodicTimeout;
 import se.sics.kompics.timer.Timeout;
 
 /**
- * Created by araxi on 2017-02-28.
+ * Created by araxi on 2017-03-07.
  */
-public class DistributorTimeout extends Timeout {
+public class GroupTimeout extends Timeout {
 
-    public DistributorTimeout(SchedulePeriodicTimeout spt) {
+    public GroupTimeout(SchedulePeriodicTimeout spt) {
         super(spt);
     }
 }

@@ -3,8 +3,8 @@ package se.kth.id2203.distributor;
 import com.larskroll.common.J6;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import se.kth.id2203.failuredetection.DistributorRequestEvent;
-import se.kth.id2203.failuredetection.DistributorResponseEvent;
+import se.kth.id2203.kvstore.KVEvent;
+import se.kth.id2203.kvstore.OpResponse;
 import se.kth.id2203.networking.Message;
 import se.kth.id2203.networking.NetAddress;
 import se.kth.id2203.overlay.*;
@@ -32,6 +32,7 @@ public class DistributorComponent extends ComponentDefinition {
     protected int groupDivision = 0;
     protected int keyInterval = Integer.MAX_VALUE;
 
+
     protected  ArrayList<Integer> grpValHolder = null;
 
     protected final Handler<SendLookupTable> lookUpTableHandler = new Handler<SendLookupTable>() {
@@ -51,13 +52,15 @@ public class DistributorComponent extends ComponentDefinition {
 
             LOG.debug("groupDivision är " + groupDivision + " och keyInterval är " + keyInterval);
             for(ArrayList<NetAddress> group : table.getNodes()){
-
-                for(int i = 1; i<group.size(); i++){
-                    trigger(new Message(self, group.get(i), new LeaderNotification("You are not the leader")), net);
+                for(int i = 0; i<group.size(); i++) {
+                    trigger(new Message(self, group.get(i), new DistributorNotification()), net);
+                }
+          /*      for(int i = 1; i<group.size(); i++){
+                    trigger(new Message(self, group.get(i), new DistributorNotification("You are not the leader")), net);
                 }
                 NetAddress leader = group.get(0);
                 leaders.add(leader);
-                 trigger(new Message(self, leader, new LeaderNotification("You are the leader")), net);
+                 trigger(new Message(self, leader, new DistributorNotification("You are the leader")), net);*/
             }
         }
     };
@@ -71,7 +74,6 @@ public class DistributorComponent extends ComponentDefinition {
         for(int i = 0; i<groupDivision-1; i++){
             LOG.debug("grpValHolder #" + i + " innehåller " + grpValHolder.get(i));
         }
-
     }
 
     protected final ClassMatchedHandler<RouteMsg, Message> routeHandler = new ClassMatchedHandler<RouteMsg, Message>() {
@@ -79,38 +81,25 @@ public class DistributorComponent extends ComponentDefinition {
         @Override
         public void handle(RouteMsg content, Message context) {
            // ArrayList<NetAddress> partition = lut.lookup(Integer.parseInt(content.key));
-           // NetAddress target = J6.randomElement(partition);
+           // NetAddress target = J6.randomElement(group);
 
             for(int i = 0; i<grpValHolder.size(); i++){
                 if (Integer.parseInt(content.key) <= grpValHolder.get(i)){
-                    LOG.info("Forwarding message with operation {} for key {} with value {} to {}",content.operation, content.key, content.value, leaders.get(i));
-                    trigger(new Message(context.getSource(), leaders.get(i), content.msg), net);
+                    ArrayList<NetAddress> group = lut.get(i);
+                    NetAddress target = J6.randomElement(group);
+
+                    LOG.info("Forwarding message with operation {} for key {} with value {} to {}", content.operation, content.key, content.value, target);
+                    trigger(new Message(context.getSource(), target, content.msg), net);
                     break;
                 }
             }
-
-        }
-    };
-    protected final Handler<RouteMsg> localRouteHandler = new Handler<RouteMsg>() {
-
-        @Override
-        public void handle(RouteMsg event) {
-            ArrayList<NetAddress> partition = lut.lookup(Integer.parseInt(event.key));
-            NetAddress target = J6.randomElement(partition);
-            LOG.info("Routing message for key {} to {}", event.key, target);
-            trigger(new Message(self, target, event.msg), net);
         }
     };
 
-    protected final ClassMatchedHandler<DistributorRequestEvent, Message> DHBHandler = new ClassMatchedHandler<DistributorRequestEvent, Message>() {
-        @Override
-        public void handle(DistributorRequestEvent distributorRequestEvent, Message message) {
 
-            LOG.debug("I am distributor: " + self + " and I received " + distributorRequestEvent.heartbeat + " from " + message.getSource());
-            trigger(new Message(self, message.getSource(), new DistributorResponseEvent("Yes I am alive as a distributor")), net);
 
-        }
-    };
+
+
 
     protected final ClassMatchedHandler<Connect, Message> connectHandler = new ClassMatchedHandler<Connect, Message>() {
 
@@ -128,11 +117,16 @@ public class DistributorComponent extends ComponentDefinition {
     };
 
 
+
+
+
     {
+
         subscribe(connectHandler, net);
-        subscribe(DHBHandler, net);
+        //subscribe(DHBHandler, net);
         subscribe(lookUpTableHandler, distribution);
         subscribe(routeHandler, net);
+       // subscribe(newLeaderHandler, net);
         //subscribe(localRouteHandler, route);
 }
 }
