@@ -42,7 +42,6 @@ import se.sics.kompics.ComponentDefinition;
 import se.sics.kompics.Handler;
 import se.sics.kompics.Negative;
 import se.sics.kompics.Positive;
-import se.sics.kompics.network.MessageNotify;
 import se.sics.kompics.network.Network;
 import se.sics.kompics.timer.CancelPeriodicTimeout;
 import se.sics.kompics.timer.SchedulePeriodicTimeout;
@@ -83,7 +82,7 @@ public class VSOverlayManager extends ComponentDefinition {
     boolean sent = false;
 
     protected int majorityCounter = 0;
-    protected int epsilon = 2;
+    protected int majority = 2;
     protected ArrayList<Value> groupValues = new ArrayList<>();
     protected int timestamp = 0;
     protected ArrayList<Integer> timestamps = new ArrayList<>();
@@ -190,7 +189,7 @@ public class VSOverlayManager extends ComponentDefinition {
         public void handle(ResponseTimestampEvent responseTimestampEvent, Message message) {
             Operation operation = responseTimestampEvent.operation;
             timestamps.add(responseTimestampEvent.timestamp);
-            if(timestamps.size() == epsilon){
+            if(timestamps.size() == majority){
                 int maxTimestamp = 0;
                 for(int i = 0; i<timestamps.size(); i++){
                     if(maxTimestamp < timestamps.get(i)){
@@ -236,7 +235,7 @@ public class VSOverlayManager extends ComponentDefinition {
                     sent = false;
                 }
 
-                if (majorityCounter == epsilon) {
+                if (majorityCounter == majority) {
                     LOG.debug("ÄR I IF I MAJORITYCOUNTER");
                     trigger(new Message(self, client, new OpResponse(kvResponse.operation, kvResponse.id, OpResponse.Code.OK)), net);
                     sent = true;
@@ -255,7 +254,7 @@ public class VSOverlayManager extends ComponentDefinition {
                     sent = false;
                 }
 
-                    if(groupValues.size() == epsilon){
+                    if(groupValues.size() == majority){
 
                         for(int i = 0; i<groupValues.size(); i++){
                             if(kvResponse.value != null){
@@ -323,7 +322,7 @@ public class VSOverlayManager extends ComponentDefinition {
                     LOG.debug("I am: " + self + " and I am suspecting group member: " + monitoring.get(i) + " with seqNr" + seqNr);
                     LOG.warn("");
                     suspect.add(monitoring.get(i));
-                    if(suspect.size() == epsilon){
+                    if(suspect.size() == majority){
                         LOG.warn("WARNING TOO FEW MEMBERS IN GROUP!!!!!!!!!!!!");
                     }
                 }else if(alive.contains(monitoring.get(i)) && suspect.contains(monitoring.get(i))){
@@ -390,8 +389,8 @@ public class VSOverlayManager extends ComponentDefinition {
         subscribe(connectHandler, net);
         subscribe(distributorNotificationHandler, net);
         subscribe(heartBeatHandler, timer);
-        //subscribe(HBRequestHandler, net);
-        //subscribe(HBResponseHandler, net);
+        subscribe(HBRequestHandler, net);
+        subscribe(HBResponseHandler, net);
         subscribe(KVResponseHandler, net);
         subscribe(KVRequestHandler, net);
         subscribe(requestTimestampHandler, net);
