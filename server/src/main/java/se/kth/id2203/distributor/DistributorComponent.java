@@ -80,6 +80,8 @@ public class DistributorComponent extends ComponentDefinition {
 
         @Override
         public void handle(RouteMsg content, Message context) {
+
+            LOG.debug("HEEELOOOOOOOOOOODISTRIBUTOR");
            // ArrayList<NetAddress> partition = lut.lookup(Integer.parseInt(content.key));
            // NetAddress target = J6.randomElement(group);
 

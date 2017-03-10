@@ -30,10 +30,12 @@ import java.util.Map;
 import se.kth.id2203.ParentComponent;
 import se.kth.id2203.networking.NetAddress;
 import se.sics.kompics.Init;
+import se.sics.kompics.Kill;
 import se.sics.kompics.network.Address;
 import se.sics.kompics.simulator.SimulationScenario;
 import se.sics.kompics.simulator.adaptor.Operation1;
 import se.sics.kompics.simulator.adaptor.distributions.extra.BasicIntSequentialDistribution;
+import se.sics.kompics.simulator.events.system.KillNodeEvent;
 import se.sics.kompics.simulator.events.system.StartNodeEvent;
 
 /**
@@ -104,6 +106,7 @@ public abstract class ScenarioGen {
                     try {
                         selfAdr = new NetAddress(InetAddress.getByName("192.168.1." + self), 45678);
                         bsAdr = new NetAddress(InetAddress.getByName("192.168.0.1"), 45678);
+
                     } catch (UnknownHostException ex) {
                         throw new RuntimeException(ex);
                     }
@@ -116,8 +119,10 @@ public abstract class ScenarioGen {
 
                 @Override
                 public Class getComponentDefinition() {
-                    return ScenarioClient.class;
+                    return ScenarioClientPut.class;
                 }
+
+
 
                 @Override
                 public String toString() {
@@ -140,13 +145,14 @@ public abstract class ScenarioGen {
         }
     };
 
-    public static SimulationScenario simpleOps(final int servers) {
+    public static SimulationScenario simpleOps(final int servers, final int serverToDie) {
         return new SimulationScenario() {
             {
                 SimulationScenario.StochasticProcess startCluster = new SimulationScenario.StochasticProcess() {
                     {
                         eventInterArrivalTime(constant(1000));
                         raise(servers, startServerOp, new BasicIntSequentialDistribution(1));
+                        raise(serverToDie, startServerOp, new BasicIntSequentialDistribution(1));
                     }
                 };
 
@@ -157,8 +163,9 @@ public abstract class ScenarioGen {
                     }
                 };
                 startCluster.start();
-                startClients.startAfterTerminationOf(10000, startCluster);
+                startClients.startAfterTerminationOf(20000, startCluster);
                 terminateAfterTerminationOf(100000, startClients);
+
             }
         };
     }

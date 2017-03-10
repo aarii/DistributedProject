@@ -145,6 +145,8 @@ public class VSOverlayManager extends ComponentDefinition {
     protected final ClassMatchedHandler<Operation, Message> opHandler = new ClassMatchedHandler<Operation, Message>() {
         @Override
         public void handle(Operation operation, Message message) {
+
+            LOG.info("HhERHERherherjerjer");
             client = message.getSource();
             if(operation.operation.equalsIgnoreCase("put")){
                 for(int i = 0; i<group.size(); i++) {
