@@ -120,15 +120,11 @@ public class DistributorComponent extends ComponentDefinition {
 
 
 
-
-
     {
 
         subscribe(connectHandler, net);
-        //subscribe(DHBHandler, net);
         subscribe(lookUpTableHandler, distribution);
         subscribe(routeHandler, net);
-       // subscribe(newLeaderHandler, net);
-        //subscribe(localRouteHandler, route);
+
 }
 }

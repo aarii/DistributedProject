@@ -219,6 +219,7 @@ public class VSOverlayManager extends ComponentDefinition {
                     trigger(new KVEvent(kvRequest.operation, kvRequest.key, kvRequest.value, kvRequest.id, kvRequest.groupmember, timestamp, group), clientRequest);
                 }
             }
+
         }
     };
 
@@ -242,6 +243,11 @@ public class VSOverlayManager extends ComponentDefinition {
                     trigger(new Message(self, client, new OpResponse(kvResponse.operation, kvResponse.id, OpResponse.Code.OK)), net);
                     sent = true;
                     majorityCounter = 0;
+                }
+
+
+                if(suspect.size() > 0){
+                    sent = false;
                 }
 
             }else if(kvResponse.operation.equalsIgnoreCase("get")){
@@ -287,6 +293,10 @@ public class VSOverlayManager extends ComponentDefinition {
 
                         }
                     }
+                if(suspect.size() > 0){
+                    sent = false;
+                }
+
             }
         }
     };

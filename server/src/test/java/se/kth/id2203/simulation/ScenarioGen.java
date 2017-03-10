@@ -94,6 +94,33 @@ public abstract class ScenarioGen {
         }
     };
 
+   public static final Operation1 killServerOp = new Operation1<KillNodeEvent, Integer>() {
+        @Override
+        public KillNodeEvent generate(final Integer self) {
+            return new KillNodeEvent() {
+                NetAddress selfAdr;
+
+                {
+                    try {
+                        selfAdr = new NetAddress(InetAddress.getByName("192.168.0.2"), 45678);
+                    } catch (UnknownHostException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                }
+
+                @Override
+                public Address getNodeAddress() {
+                    return selfAdr;
+                }
+
+                @Override
+                public String toString() {
+                    return "KillPonger<" + selfAdr.toString() + ">";
+                }
+            };
+        }
+    };
+
     private static final Operation1 startClientOp = new Operation1<StartNodeEvent, Integer>() {
 
         @Override
@@ -104,7 +131,7 @@ public abstract class ScenarioGen {
 
                 {
                     try {
-                        selfAdr = new NetAddress(InetAddress.getByName("192.168.1." + self), 45678);
+                        selfAdr = new NetAddress(InetAddress.getByName("192.168.0." + self), 45678);
                         bsAdr = new NetAddress(InetAddress.getByName("192.168.0.1"), 45678);
 
                     } catch (UnknownHostException ex) {
@@ -145,15 +172,23 @@ public abstract class ScenarioGen {
         }
     };
 
-    public static SimulationScenario simpleOps(final int servers, final int serverToDie) {
+    public static SimulationScenario simpleOps(final int servers) {
         return new SimulationScenario() {
             {
                 SimulationScenario.StochasticProcess startCluster = new SimulationScenario.StochasticProcess() {
                     {
                         eventInterArrivalTime(constant(1000));
                         raise(servers, startServerOp, new BasicIntSequentialDistribution(1));
-                        raise(serverToDie, startServerOp, new BasicIntSequentialDistribution(1));
                     }
+                };
+
+                final SimulationScenario.StochasticProcess killServer = new SimulationScenario.StochasticProcess() {
+                    {
+                        eventInterArrivalTime(constant(1000));
+                        raise(1, killServerOp, new BasicIntSequentialDistribution(1));
+
+                    }
+
                 };
 
                 SimulationScenario.StochasticProcess startClients = new SimulationScenario.StochasticProcess() {
@@ -162,7 +197,9 @@ public abstract class ScenarioGen {
                         raise(1, startClientOp, new BasicIntSequentialDistribution(1));
                     }
                 };
+
                 startCluster.start();
+                killServer.startAfterTerminationOf(1000, startCluster);
                 startClients.startAfterTerminationOf(20000, startCluster);
                 terminateAfterTerminationOf(100000, startClients);
 
