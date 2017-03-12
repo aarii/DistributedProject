@@ -44,7 +44,6 @@ public class BootstrapServer extends ComponentDefinition {
 
     final static Logger LOG = LoggerFactory.getLogger(BootstrapServer.class);
     //******* Ports ******
-    protected final Negative<Bootstrapping> boot = provides(Bootstrapping.class);
     protected final Negative<DistributionPort> distributionPort = provides(DistributionPort.class);
     protected final Positive<Network> net = requires(Network.class);
     protected final Positive<Timer> timer = requires(Timer.class);
@@ -59,7 +58,9 @@ public class BootstrapServer extends ComponentDefinition {
     private NodeAssignment initialAssignment = null;
     private int groupCount = 0;
     private ArrayList<NetAddress> done = new ArrayList<>();
+
     //******* Handlers ******
+
     protected final Handler<Start> startHandler = new Handler<Start>() {
         @Override
         public void handle(Start e) {
@@ -80,7 +81,6 @@ public class BootstrapServer extends ComponentDefinition {
 
                 if (active.size() >= bootThreshold) {
                     ArrayList<NetAddress> group = new ArrayList<>(active.subList(0, 3));
-                        // LOG.info("group innehalller " + group);
                         bootUp(group);
                         for(int i =0; i<group.size(); i++){
                             done.add(group.get(i));
@@ -103,9 +103,8 @@ public class BootstrapServer extends ComponentDefinition {
                     //LOG.info("Initial assignment är: " + initialAssignment);
                     //trigger(new Booted(initialAssignment), boot);
                     if(groupCount == bootThreshold){
-                        LOG.debug("I am about to send the look up table to the Distributor ");
+                        LOG.debug("The BootstrapServer is about to send the look up table to the Distributor ");
                         trigger(new SendLookupTable(groups), distributionPort);
-                        //starta en ny komponent som heter distributor och skicka alla viktiga grejer till den
                         state = State.DONE;
                     }
                 }
@@ -115,19 +114,6 @@ public class BootstrapServer extends ComponentDefinition {
         }
     };
 
-   /*protected final Handler<InitialAssignments> assignmentHandler = new Handler<InitialAssignments>() {
-        @Override
-        public void handle(InitialAssignments e) {
-            LOG.info("Seeding assignments...");
-            initialAssignment = e.assignment;
-           // LOG.info("GROUPCOUNT ÄR " + groupCount + " MED INITIALASSIGNMENT " + initialAssignment);
-            for (NetAddress node : done) {
-                trigger(new Message(self, node, new Boot(initialAssignment)), net);
-            }
-
-            //ready.add(self);
-        }
-    };*/
 
     protected final ClassMatchedHandler<InitialAssignments, Message> assignmentHandler = new ClassMatchedHandler<InitialAssignments, Message>() {
         @Override

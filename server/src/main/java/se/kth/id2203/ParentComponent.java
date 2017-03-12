@@ -44,7 +44,7 @@ public class ParentComponent
 
             // KV
             connect(overlay.getPositive(KVPort.class), kv.getNegative(KVPort.class), Channel.TWO_WAY);
-           connect(overlay.getPositive(Routing.class), kv.getNegative(Routing.class), Channel.TWO_WAY);
+            connect(overlay.getPositive(Routing.class), kv.getNegative(Routing.class), Channel.TWO_WAY);
             connect(net, kv.getNegative(Network.class), Channel.TWO_WAY);
 
 

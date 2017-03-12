@@ -20,14 +20,11 @@ import java.util.UUID;
  * Created by Amir on 2017-02-22.
  */
 public class DistributorComponent extends ComponentDefinition {
-    protected final Negative<Routing> route = provides(Routing.class);
     final static Logger LOG = LoggerFactory.getLogger(DistributorComponent.class);
     final NetAddress self = config().getValue("id2203.project.address", NetAddress.class);
-    ArrayList<NetAddress> leaders = new ArrayList<>();
     protected final Positive<DistributionPort> distribution = requires(DistributionPort.class);
     protected final Positive<Network> net = requires(Network.class);
     protected final Positive<Timer> timer = requires(Timer.class);
-    private UUID timeoutId;
     protected LookupTable lut = new LookupTable();
     protected int groupDivision = 0;
     protected int keyInterval = Integer.MAX_VALUE;
@@ -41,38 +38,29 @@ public class DistributorComponent extends ComponentDefinition {
         public void handle(SendLookupTable lookupTable) {
             LookupTable table = (LookupTable) lookupTable.lookupTable;
             lut = table;
-            LOG.debug("SendLookupTable är " + table);
-            LOG.debug("na.getNodes är:" + table.getNodes());
+            LOG.info("The received Lookuptable to the Distributor from BootstrapServer is: " + table);
 
             groupDivision = table.getNodes().size();
             grpValHolder = new ArrayList<Integer>(groupDivision);
 
             setKeyIntervals();
 
-
-            LOG.debug("groupDivision är " + groupDivision + " och keyInterval är " + keyInterval);
             for(ArrayList<NetAddress> group : table.getNodes()){
                 for(int i = 0; i<group.size(); i++) {
                     trigger(new Message(self, group.get(i), new DistributorNotification()), net);
                 }
-          /*      for(int i = 1; i<group.size(); i++){
-                    trigger(new Message(self, group.get(i), new DistributorNotification("You are not the leader")), net);
-                }
-                NetAddress leader = group.get(0);
-                leaders.add(leader);
-                 trigger(new Message(self, leader, new DistributorNotification("You are the leader")), net);*/
             }
         }
     };
 
     private void setKeyIntervals() {
 
-        for(int i = 0; i<groupDivision-1; i++){
+        for(int i = 0; i<groupDivision; i++){
             grpValHolder.add((i+1) * (keyInterval/groupDivision));
         }
-
-        for(int i = 0; i<groupDivision-1; i++){
-            LOG.debug("grpValHolder #" + i + " innehåller " + grpValHolder.get(i));
+        LOG.info("Setting key intervals for " + groupDivision + " groups");
+        for(int i = 0; i<groupDivision; i++){
+            LOG.info("Key interval for group" + (i+1) + " is: " + grpValHolder.get(i));
         }
     }
 
@@ -81,16 +69,16 @@ public class DistributorComponent extends ComponentDefinition {
         @Override
         public void handle(RouteMsg content, Message context) {
 
-            LOG.debug("HEEELOOOOOOOOOOODISTRIBUTOR");
-           // ArrayList<NetAddress> partition = lut.lookup(Integer.parseInt(content.key));
-           // NetAddress target = J6.randomElement(group);
-
             for(int i = 0; i<grpValHolder.size(); i++){
                 if (Integer.parseInt(content.key) <= grpValHolder.get(i)){
                     ArrayList<NetAddress> group = lut.get(i);
                     NetAddress target = J6.randomElement(group);
+                    if(content.value != null) {
+                        LOG.info("Forwarding message with operation {} for key {} with value {} to {}", content.operation, content.key, content.value, target);
+                    }else{
+                        LOG.info("Forwarding message with operation {} for key {} to {}", content.operation, content.key, target);
 
-                    LOG.info("Forwarding message with operation {} for key {} with value {} to {}", content.operation, content.key, content.value, target);
+                    }
                     trigger(new Message(context.getSource(), target, content.msg), net);
                     break;
                 }
@@ -99,15 +87,11 @@ public class DistributorComponent extends ComponentDefinition {
     };
 
 
-
-
-
-
     protected final ClassMatchedHandler<Connect, Message> connectHandler = new ClassMatchedHandler<Connect, Message>() {
 
         @Override
         public void handle(Connect content, Message context) {
-            LOG.debug("VI ÄR I CONNECTHANDLER MED LUT: " + lut.toString());
+
             if (lut != null) {
                 LOG.debug("Accepting connection request from {}", context.getSource());
                 int size = lut.getNodes().size();
@@ -118,13 +102,11 @@ public class DistributorComponent extends ComponentDefinition {
         }
     };
 
-
-
     {
 
         subscribe(connectHandler, net);
         subscribe(lookUpTableHandler, distribution);
         subscribe(routeHandler, net);
 
-}
+    }
 }

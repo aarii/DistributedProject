@@ -146,20 +146,16 @@ public class VSOverlayManager extends ComponentDefinition {
         @Override
         public void handle(Operation operation, Message message) {
 
-            LOG.info("HhERHERherherjerjer");
             client = message.getSource();
             if(operation.operation.equalsIgnoreCase("put")){
                 for(int i = 0; i<group.size(); i++) {
                     trigger(new Message(self, group.get(i), new RequestTimestampEvent(operation)), net);
-                    LOG.debug("I am " + self + " and I am sending a requesttimestampevent to " + group.get(i));
                 }
             }
 
             if(operation.operation.equalsIgnoreCase("get")) {
                 for (int i = 0; i < group.size(); i++) {
-                    trigger(new Message(self, group.get(i), new RequestGetValuesEvent(operation)), net);
-                    LOG.debug("I am " + self + " and I am sending a requestgetvaluesevent to " + group.get(i));
-
+                    trigger(new Message(self, group.get(i), new RequestGetValuesEvent(operation, operation.id)), net);
                 }
             }
 
@@ -171,16 +167,14 @@ public class VSOverlayManager extends ComponentDefinition {
         @Override
         public void handle(RequestGetValuesEvent requestGetValuesEvent, Message message) {
             Operation op = requestGetValuesEvent.operation;
-            LOG.debug("I am " + self + " and I received a requestGetvalue and will now do a kvevent");
-            trigger(new KVEvent(op.operation, op.key,op.id, message.getSource()), clientRequest);
-
+            UUID id = requestGetValuesEvent.id;
+            trigger(new KVEvent(op.operation, op.key, requestGetValuesEvent.id, message.getSource()), clientRequest);
         }
     };
 
     protected final ClassMatchedHandler<RequestTimestampEvent, Message> requestTimestampHandler = new ClassMatchedHandler<RequestTimestampEvent, Message>() {
         @Override
         public void handle(RequestTimestampEvent requestTimestampEvent, Message message) {
-            LOG.debug("I am " + self + " and I received a requesttimestampevent and will now response ");
             trigger(new Message(self, message.getSource(), new ResponseTimestampEvent(requestTimestampEvent.operation, timestamp)), net);
 
         }
@@ -201,7 +195,6 @@ public class VSOverlayManager extends ComponentDefinition {
                         timestamps.clear();
                 if(operation.operation.equalsIgnoreCase("put")){
                     for(int i = 0; i<group.size(); i++) {
-                        LOG.debug("I am " + self + " and send a kvrequest to " + group.get(i));
                         trigger(new Message(self,group.get(i),new KVRequest(operation.operation, operation.key, operation.value, operation.id, self, maxTimestamp +1)), net);
                     }
                 }
@@ -212,10 +205,10 @@ public class VSOverlayManager extends ComponentDefinition {
     protected final ClassMatchedHandler<KVRequest, Message> KVRequestHandler = new ClassMatchedHandler<KVRequest, Message>() {
         @Override
         public void handle(KVRequest kvRequest, Message message) {
+            LOG.info("I am "+ self + " and I will do a put operation with key {} and value {} now ", kvRequest.key, kvRequest.value);
             if(kvRequest.operation.equalsIgnoreCase("put")){
                 if(timestamp <= kvRequest.maxTimestamp) {
                     timestamp = kvRequest.maxTimestamp;
-                    LOG.debug("I am " + self + " and I will do a kvevent now");
                     trigger(new KVEvent(kvRequest.operation, kvRequest.key, kvRequest.value, kvRequest.id, kvRequest.groupmember, timestamp, group), clientRequest);
                 }
             }
@@ -226,39 +219,34 @@ public class VSOverlayManager extends ComponentDefinition {
     protected final ClassMatchedHandler<KVResponse, Message> KVResponseHandler = new ClassMatchedHandler<KVResponse, Message>() {
         @Override
         public void handle(KVResponse kvResponse, Message message) {
-            LOG.debug("I am "+ self + " and I received an operation: " + kvResponse.operation);
-            if(kvResponse.operation.equalsIgnoreCase("put")) {
-                majorityCounter++;
-                LOG.debug("I am " + self + " and majorityCounter is now in put  " + majorityCounter);
+            String operation = kvResponse.operation;
 
+            LOG.info("I am "+ self + " and I received that the operation: " + kvResponse.operation + " is done for group member " + message.getSource());
+            if(operation.equalsIgnoreCase("put")) {
+                majorityCounter++;
 
                 if(sent == true){
                     majorityCounter = 0;
-                    LOG.debug("I am " + self + " and majorityCounter is now in put  " + majorityCounter);
                     sent = false;
                 }
 
                 if (majorityCounter == majority) {
-                    LOG.debug("ÄR I IF I MAJORITYCOUNTER");
+                    LOG.debug("I am " + self + " and the put operation for key is complete, sending back an OK to client");
                     trigger(new Message(self, client, new OpResponse(kvResponse.operation, kvResponse.id, OpResponse.Code.OK)), net);
                     sent = true;
                     majorityCounter = 0;
                 }
-
 
                 if(suspect.size() > 0){
                     sent = false;
                 }
 
             }else if(kvResponse.operation.equalsIgnoreCase("get")){
-
-                LOG.debug("Vi kommer in i KVResponseHandler get ");
+                LOG.debug("I am "+ self + " and I received an operation: " + kvResponse.operation);
                 groupValues.add(kvResponse.v);
-                LOG.debug("I am " + self + " and majoritycounter is in get: " + majorityCounter);
 
                 if(sent == true){
                     groupValues.clear();
-                    LOG.debug("I am " + self + " and majorityCounter is now in get  " + majorityCounter);
                     sent = false;
                 }
 
@@ -273,18 +261,16 @@ public class VSOverlayManager extends ComponentDefinition {
                                     break;
                                 }
                             }
-                            LOG.debug("groupValues size är " + groupValues.size() + " groupValues get i är " + groupValues.get(i).value + " " +
-                                    "groupValues i + 1 är " + groupValues.get(i+1).value);
+
                             if(groupValues.get(i).timestamp < groupValues.get(i+1).timestamp){
-                                LOG.debug("LALALALALALALALALA VÄRDET ÄR " + groupValues.get(i+1).value);
+                                LOG.debug("I am " + self + " and the get operation is complete, sending back value: " + String.valueOf(groupValues.get(i+1).value) + " to the client");
                                 trigger(new Message(self, client, new OpResponse(kvResponse.operation, kvResponse.id,  String.valueOf(groupValues.get(i + 1).value), OpResponse.Code.OK)), net);
                                 sent = true;
                                 groupValues.clear();
                                 break;
 
                             }else{
-
-                                LOG.debug("LALALALALALALALALA VÄRDET ÄR " + groupValues.get(i).value);
+                                LOG.debug("I am " + self + " and the get operation is complete, sending back value: " + String.valueOf(groupValues.get(i).value + " to the client"));
                                 trigger(new Message(self, client, new OpResponse(kvResponse.operation, kvResponse.id, String.valueOf(groupValues.get(i).value), OpResponse.Code.OK)), net);
                                 sent = true;
                                 groupValues.clear();
@@ -312,7 +298,7 @@ public class VSOverlayManager extends ComponentDefinition {
         public void handle(DistributorNotification distributorNotification, Message message) {
 
             distributor = message.getSource();
-            LOG.debug("I am " + self + " and I received a message from my distributor with address: " + distributor);
+            LOG.info("I am " + self + " and I received a message from my distributor with address: " + distributor);
         }
     };
 
@@ -321,24 +307,24 @@ public class VSOverlayManager extends ComponentDefinition {
         public void handle(GroupTimeout groupTimeout) {
 
             if(!alive.isEmpty() && !suspect.isEmpty()){
-                LOG.debug("I am:  " + self +   " and received a heartbeat too late from a group member and will increment my timer now");
+                LOG.info("I am:  " + self +   " and received a heartbeat too late from a group member and will increment my timer now");
                 tearDown();
                 delta +=1;
                 startTimer(delta);
                 seqNr += 1;
-                LOG.debug("seqNr has now been incremented to: " + seqNr);
+               // LOG.debug("seqNr has now been incremented to: " + seqNr);
             }
 
             for(int i = 0; i< monitoring.size(); i++){
                 if(!alive.contains(monitoring.get(i)) && !suspect.contains(monitoring.get(i))){
-                    LOG.debug("I am: " + self + " and I am suspecting group member: " + monitoring.get(i) + " with seqNr" + seqNr);
+                    LOG.info("I am: " + self + " and I am suspecting group member: " + monitoring.get(i));
                     LOG.warn("");
                     suspect.add(monitoring.get(i));
                     if(suspect.size() == majority){
                         LOG.warn("WARNING TOO FEW MEMBERS IN GROUP!!!!!!!!!!!!");
                     }
                 }else if(alive.contains(monitoring.get(i)) && suspect.contains(monitoring.get(i))){
-                    LOG.debug("I am: " + self + " and I am unsuspecting group member: " + monitoring.get(i) +  " with seqNr" + seqNr);
+                    LOG.info("I am: " + self + " and I am unsuspecting group member: " + monitoring.get(i));
                     suspect.remove(monitoring.get(i));
                 }
 
@@ -361,7 +347,7 @@ public class VSOverlayManager extends ComponentDefinition {
 
         @Override
         public void handle(HeartbeatResponseEvent heartbeatResponse, Message message) {
-            LOG.debug("I am: " + self + " and I got an acknowledgement from group member: " + message.getSource() + " that he is alive");
+            //LOG.info("I am: " + self + " and I got an acknowledgement from group member: " + message.getSource() + " that he is alive");
             alive.add(message.getSource());
         }
     };

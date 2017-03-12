@@ -36,6 +36,7 @@ public class SimulationResultSingleton implements SimulationResultMap {
 
     public static SimulationResultMap instance = null;
 
+
     public synchronized static SimulationResultMap getInstance() {
         ClassLoader myClassLoader = SimulationResultSingleton.class.getClassLoader();
         if (instance == null) {
@@ -48,11 +49,13 @@ public class SimulationResultSingleton implements SimulationResultMap {
                     instance = (SimulationResultMap) Proxy.newProxyInstance(myClassLoader,
                             new Class[]{SimulationResultMap.class},
                             new PassThroughProxyHandler(otherAbsoluteSingleton));
+
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
             } else {
                 instance = new SimulationResultSingleton();
+
             }
         }
 

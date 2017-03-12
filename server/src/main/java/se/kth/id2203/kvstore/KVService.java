@@ -76,7 +76,6 @@ public class KVService extends ComponentDefinition {
 
             NetAddress groupmember = kvEvent.groupmember;
             ArrayList<NetAddress> group = kvEvent.group;
-            LOG.debug("op är " + op  + " groupmember är " + groupmember);
             if(kvEvent.value != null) {
                 value = Integer.parseInt(kvEvent.value);
             }
@@ -88,7 +87,6 @@ public class KVService extends ComponentDefinition {
                 Value v = new Value(groupmember, timestamp, value);
 
                 if(KVStore.containsKey(key)) {
-                    LOG.debug("VI KOMMER IN I PUT I KVSVERICE groupmember är: " + groupmember + " timestamp är: " + timestamp + " och value är: " + value );
                     Value v1 = KVStore.get(key);
                     if(v1.timestamp == timestamp){
                         for(int i = 0; i < group.size(); i++){
@@ -109,7 +107,6 @@ public class KVService extends ComponentDefinition {
                         trigger(new Message(self, groupmember, new KVResponse("put", id)), net);
                     }
                 }else{
-                    LOG.debug("VI KOMMER IN I PUT Förförsta gången I KVSVERICE groupmember är: " + groupmember + " timestamp är: " + timestamp + " och value är: " + value );
                     KVStore.put(key, v);
                     trigger(new Message(self, groupmember, new KVResponse("put", id)), net);
                 }
@@ -120,9 +117,7 @@ public class KVService extends ComponentDefinition {
             if(op.equalsIgnoreCase("get")){
 
                 if(KVStore.containsKey(key)){
-                    LOG.debug("groupmember är " + groupmember);
-                    LOG.debug("VI ÄR I EN GET I KVSERVICE MED KEY " + key + " MED VALUE " + KVStore.get(key).value);
-                    trigger(new Message(self, groupmember, new KVResponse("get", KVStore.get(key))), net);
+                    trigger(new Message(self, groupmember, new KVResponse("get", id, KVStore.get(key))), net);
                 }else{
                     trigger(new Message(self, groupmember, new KVResponse("get", id, String.valueOf(key), "No value for that key")), net);
 

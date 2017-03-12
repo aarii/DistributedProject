@@ -8,8 +8,6 @@ import se.sics.kompics.PortType;
 public class DistributionPort extends PortType {
 
     {
-
         indication(SendLookupTable.class);
-
     }
 }

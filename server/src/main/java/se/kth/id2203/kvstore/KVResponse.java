@@ -23,9 +23,10 @@ public class KVResponse implements KompicsEvent, Serializable {
         this.key = key;
         this.value = value;
     }
-    public KVResponse(String operation, Value v){
+    public KVResponse(String operation, UUID id, Value v){
         this.operation = operation;
         this.v = v;
+        this.id = id;
     }
 
     public KVResponse(String operation, UUID id){
